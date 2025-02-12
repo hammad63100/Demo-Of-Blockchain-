@@ -384,10 +384,10 @@ app.post('/api/upload', (req, res) => {
                 }
             };
 
-            console.log(`📤 Starting upload to Pinata in 5 seconds: ${req.file.originalname}`);
+            console.log(`📤 Starting upload to Pinata: ${req.file.originalname}`);
             
-            // Add 5-second delay here
-            await delay(5000);
+            // Add 7-second delay here
+            await delay(7000);
             
             // Try to upload to Pinata
             const response = await pinata.pinFileToIPFS(readableStreamForFile, options);
@@ -409,7 +409,7 @@ app.post('/api/upload', (req, res) => {
                 pinataUrl: `https://gateway.pinata.cloud/ipfs/${response.IpfsHash}`,
                 timestamp: new Date().toISOString(),
                 uploadedBy: username,
-                uploadTime: new Date().toISOString()
+                // uploadTime: new Date().toISOString()
             };
 
             // Verify file data before adding to records
@@ -454,7 +454,7 @@ app.post('/api/upload', (req, res) => {
 
             const fileSizeInKB = req.file.size / 1024;
             const uploadCharge = (0.002 * (fileSizeInKB / 100)).toFixed(6); // 0.002 ETH per 100KB for upload
-            const rewardAmount = (0.005 * (fileSizeInKB / 100)).toFixed(6); // 0.003 ETH per 100KB for reward
+            const rewardAmount = (0.005 * (fileSizeInKB / 100)).toFixed(6); // 0.005 ETH per 100KB for reward
             console.log(`Calculated reward for ${fileSizeInKB}KB: ${rewardAmount} ETH`);
             console.log(`Upload charge for ${fileSizeInKB}KB: ${uploadCharge} ETH`);
             await sendReward(ethAddress, rewardAmount);

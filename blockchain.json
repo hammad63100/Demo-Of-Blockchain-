@@ -244,5 +244,39 @@
     "uploadTime": "2025-02-12T08:01:24.622Z",
     "previousHash": "214d49344c62d207695459401915e507128a20c916cf8d145ccdbe9aedc28b12",
     "hash": "9b87eb1338280c2d12ee110a5cfdc79363502e12d5f467f2952538ffeeac60a9"
+  },
+  {
+    "fileName": "Afzal_khan EP CV (2).pdf",
+    "fileType": "application/pdf",
+    "fileSize": 72714,
+    "ipfsHash": "Qmf2orrXQTcrfoiXeQTfmPZ9u8eivcexCGGkxYzWJdb47j",
+    "pinataUrl": "https://gateway.pinata.cloud/ipfs/Qmf2orrXQTcrfoiXeQTfmPZ9u8eivcexCGGkxYzWJdb47j",
+    "timestamp": "2025-02-12T09:29:55.897Z",
+    "uploadedBy": "Zeeshan",
+    "uploadTime": "2025-02-12T09:29:55.897Z",
+    "previousHash": "9b87eb1338280c2d12ee110a5cfdc79363502e12d5f467f2952538ffeeac60a9",
+    "hash": "51a5c92504f3b75dd42e4e27a31c9c2489e6b3516547db61866bea92082f5849"
+  },
+  {
+    "fileName": "Blockchain Developer .pdf",
+    "fileType": "application/pdf",
+    "fileSize": 263143,
+    "ipfsHash": "QmQT7tnZa3raJ4skaUEfVd5wM9FAanSBXAmrzdbhyorA4b",
+    "pinataUrl": "https://gateway.pinata.cloud/ipfs/QmQT7tnZa3raJ4skaUEfVd5wM9FAanSBXAmrzdbhyorA4b",
+    "timestamp": "2025-02-12T09:43:09.885Z",
+    "uploadedBy": "Zeeshan",
+    "previousHash": "51a5c92504f3b75dd42e4e27a31c9c2489e6b3516547db61866bea92082f5849",
+    "hash": "557c874307af516d8a22c971fded3b58b7417e70ffd82bb1ff7f841fdc6fb582"
+  },
+  {
+    "fileName": "files.pdf",
+    "fileType": "application/pdf",
+    "fileSize": 103215,
+    "ipfsHash": "QmPfDaMg7uvLNdZCmuzu6NK6N2HqqVBLetpqZzG6KHSjVn",
+    "pinataUrl": "https://gateway.pinata.cloud/ipfs/QmPfDaMg7uvLNdZCmuzu6NK6N2HqqVBLetpqZzG6KHSjVn",
+    "timestamp": "2025-02-12T10:04:35.371Z",
+    "uploadedBy": "Zeeshan",
+    "previousHash": "557c874307af516d8a22c971fded3b58b7417e70ffd82bb1ff7f841fdc6fb582",
+    "hash": "3d514ad8618125ddae156222cefdae5824d7aa50981fb9cd74c5f746f3423825"
   }
 ]
