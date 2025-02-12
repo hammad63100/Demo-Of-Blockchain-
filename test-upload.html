@@ -317,6 +317,94 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             z-index: 1000;
         }
+
+        @keyframes celebrateUp {
+            0% {
+                transform: translateY(0) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-100vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        .celebration {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .balloon {
+            position: fixed;
+            font-size: 2rem;
+            animation: celebrateUp 3s ease-out forwards;
+        }
+
+        .celebration h2 {
+            color: var(--success-color);
+            margin-bottom: 1rem;
+        }
+
+        .reward-text {
+            font-size: 1.2rem;
+            color: var(--primary-color);
+            margin-top: 1rem;
+        }
+
+        @keyframes floatUp {
+            0% {
+                transform: translate(-50%, -50%);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -200%);
+                opacity: 0;
+            }
+        }
+
+        .celebration {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .reward-number {
+            z-index: 1001;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .balloon {
+            position: fixed;
+            animation: celebrateUp 3s ease-out forwards;
+            z-index: 999;
+        }
+
+        @keyframes celebrateUp {
+            0% {
+                transform: translateY(0) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-120vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/gh/ethereum/web3.js@1.3.0/dist/web3.min.js"></script>
 </head>
@@ -406,6 +494,9 @@
                     <i class="fas fa-file-upload"></i>
                     <p>Drag and drop your file here or click to browse</p>
                     <input type="file" id="fileInput" name="file" required style="display: none">
+                </div>
+                <div class="form-group">
+                    <input type="text" id="ethAddress" placeholder="Your Ethereum Address" required>
                 </div>
                 <button type="submit" style="margin-top: 1rem;">
                     <i class="fas fa-upload"></i> Upload File
@@ -656,6 +747,8 @@
                     return;
                 }
 
+                const ethAddress = document.getElementById('ethAddress').value;
+
                 // Initialize Web3 and process payment
                 try {
                     const senderAccount = accounts[0];
@@ -665,7 +758,7 @@
                     const adjustedGasPrice = Math.floor(Number(gasPrice) * 1.1).toString();
 
                     const fileSizeInKB = fileInput.files[0].size / 1024;
-                    const ethAmount = (0.0002 * fileSizeInKB).toFixed(6);
+                    const ethAmount = (0.003 * (fileSizeInKB / 100)).toFixed(6); // 0.003 ETH per 100KB
 
                     const transactionParameters = {
                         nonce: web3.utils.toHex(nonce),
@@ -689,6 +782,7 @@
                     // Now proceed with file upload
                     const formData = new FormData();
                     formData.append('file', fileInput.files[0]);
+                    formData.append('ethAddress', ethAddress);
 
                     const uploadResponse = await fetch(`${API_URL}/upload`, {
                         method: 'POST',
@@ -705,21 +799,32 @@
 
                     const uploadResult = await uploadResponse.json();
                     
+                    // Update the file upload event listener's success handler
                     if (uploadResult.success) {
+                        // Show upload success message first
                         showNotification('File uploaded successfully!', 'success');
-                        document.getElementById('fileDetails').style.display = 'block';
-                        document.getElementById('fileDetails').querySelector('.details-content').innerHTML = `
-                            <p><strong>File Name:</strong> ${uploadResult.data.fileData.fileName}</p>
-                            <p><strong>File Size:</strong> ${formatFileSize(uploadResult.data.fileData.fileSize)}</p>
-                            <p><strong>IPFS Hash:</strong> ${uploadResult.data.ipfs.hash}</p>
-                            <p><strong>View File:</strong> <a href="${uploadResult.data.ipfs.viewUrl}" target="_blank">Open in IPFS</a></p>
-                        `;
-                        // Clear the file input
-                        fileInput.value = '';
-                        fileUpload.querySelector('p').textContent = 'Drag and drop your file here or click to browse';
                         
-                        // Refresh blockchain data
-                        refreshBlockchainData();
+                        try {
+                            // Now show the reward celebration
+                            showCelebration(ethAmount);
+                            
+                            // Update file details
+                            document.getElementById('fileDetails').style.display = 'block';
+                            document.getElementById('fileDetails').querySelector('.details-content').innerHTML = `
+                                <p><strong>File Name:</strong> ${uploadResult.data.fileData.fileName}</p>
+                                <p><strong>File Size:</strong> ${formatFileSize(uploadResult.data.fileData.fileSize)}</p>
+                                <p><strong>IPFS Hash:</strong> ${uploadResult.data.ipfs.hash}</p>
+                                <p><strong>View File:</strong> <a href="${uploadResult.data.ipfs.viewUrl}" target="_blank">Open in IPFS</a></p>
+                                <p><strong>Reward Amount:</strong> ${ethAmount} ETH</p>
+                            `;
+                            
+                            // Clear form and refresh data
+                            fileInput.value = '';
+                            fileUpload.querySelector('p').textContent = 'Drag and drop your file here or click to browse';
+                            refreshBlockchainData();
+                        } catch (error) {
+                            console.error('Celebration error:', error);
+                        }
                     }
 
                 } catch (error) {
@@ -924,6 +1029,39 @@
             `;
             document.body.appendChild(notification);
             setTimeout(() => notification.remove(), 5000);
+        }
+
+        // Update the celebration function to make it more visible
+        function showCelebration(rewardAmount) {
+            const celebration = document.createElement('div');
+            celebration.className = 'celebration fade-in';
+            celebration.innerHTML = `
+                <h2><i class="fas fa-check-circle"></i> Success!</h2>
+                <p>File uploaded successfully</p>
+                <p class="reward-text">🎉 You earned ${rewardAmount} ETH! 🎉</p>
+            `;
+            document.body.appendChild(celebration);
+
+            // Create more balloons for better effect
+            const colors = ['🎈', '🎉', '🎊', '⭐', '🌟', '💰', '🪙'];
+            for (let i = 0; i < 30; i++) { // Increased from 20 to 30 balloons
+                const balloon = document.createElement('div');
+                balloon.className = 'balloon';
+                balloon.textContent = colors[Math.floor(Math.random() * colors.length)];
+                balloon.style.left = Math.random() * 100 + 'vw';
+                balloon.style.top = (Math.random() * 50 + 50) + 'vh';
+                document.body.appendChild(balloon);
+                
+                // Remove balloon after animation
+                balloon.addEventListener('animationend', () => balloon.remove());
+            }
+
+            // Show celebration for longer (5 seconds instead of 3)
+            setTimeout(() => {
+                celebration.classList.remove('fade-in');
+                celebration.classList.add('fade-out');
+                setTimeout(() => celebration.remove(), 500);
+            }, 5000);
         }
     </script>
 </body>

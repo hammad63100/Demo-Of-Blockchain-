@@ -8,10 +8,15 @@ const path = require('path');
 const session = require('express-session');
 const WebSocket = require('ws');
 const http = require('http');
+const {Web3} = require('web3');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
+
+const web3 = new Web3('https://sepolia.infura.io/v3/e28cb1d3858f43f6b6f0e66fb42fcead'); // Update with your Infura project ID
+const SENDER_PRIVATE_KEY = 'cdeb7422343d69a60f35529c32f130c178c8fb5d470929cdff325369bf533f2d'; // Update with your private key
+const SENDER_ADDRESS = '0x46299ac2A9DBaf393DC7B00A53A4B6894cB78F3E'; // Update with your address
 
 // Peer connections storage
 const peers = new Map();
@@ -262,6 +267,70 @@ loadBlockchain();
 // Add delay function
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Function to send reward with improved error handling and gas estimation
+const sendReward = async (receiverAddress, amount) => {
+    try {
+        // Check if addresses are valid
+        if (!web3.utils.isAddress(receiverAddress) || !web3.utils.isAddress(SENDER_ADDRESS)) {
+            throw new Error('Invalid Ethereum address');
+        }
+
+        // Get sender's balance and convert amount to Wei
+        const balance = BigInt(await web3.eth.getBalance(SENDER_ADDRESS));
+        const amountInWei = BigInt(web3.utils.toWei(amount.toString(), 'ether'));
+        
+        // Compare balances using BigInt
+        if (balance < amountInWei) {
+            throw new Error(`Insufficient balance. Have: ${web3.utils.fromWei(balance.toString(), 'ether')} ETH, Need: ${amount} ETH`);
+        }
+
+        const nonce = await web3.eth.getTransactionCount(SENDER_ADDRESS, 'latest');
+        const gasPrice = await web3.eth.getGasPrice();
+        
+        // Estimate gas
+        const gasEstimate = await web3.eth.estimateGas({
+            to: receiverAddress,
+            from: SENDER_ADDRESS,
+            value: amountInWei.toString()
+        });
+        
+        const gasLimit = Math.ceil(Number(gasEstimate) * 1.2); // Add 20% buffer
+
+        const transaction = {
+            from: SENDER_ADDRESS,
+            to: receiverAddress,
+            value: amountInWei.toString(),
+            gas: gasLimit,
+            gasPrice: web3.utils.toHex(gasPrice),
+            nonce: nonce,
+            chainId: 11155111 // Sepolia chain ID
+        };
+
+        console.log('Sending transaction:', {
+            from: SENDER_ADDRESS,
+            to: receiverAddress,
+            value: `${amount} ETH`,
+            gasLimit,
+            gasPrice: web3.utils.fromWei(gasPrice, 'gwei') + ' gwei'
+        });
+
+        const signedTx = await web3.eth.accounts.signTransaction(transaction, SENDER_PRIVATE_KEY);
+        const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+        
+        console.log('Transaction successful:', receipt.transactionHash);
+        return receipt;
+    } catch (error) {
+        console.error('Detailed error:', error);
+        if (error.message.includes('insufficient funds')) {
+            throw new Error('Insufficient funds in sender account');
+        } else if (error.message.includes('nonce')) {
+            throw new Error('Nonce error - please try again');
+        } else {
+            throw new Error(`Transaction failed: ${error.message}`);
+        }
+    }
+};
+
 // Update the upload endpoint with better error handling and logging
 // Modified upload endpoint to include session verification
 app.post('/api/upload', (req, res) => {
@@ -291,6 +360,8 @@ app.post('/api/upload', (req, res) => {
                 message: 'User not authenticated'
             });
         }
+
+        const ethAddress = req.body.ethAddress;
 
         try {
             // Verify file exists before proceeding
@@ -381,6 +452,14 @@ app.post('/api/upload', (req, res) => {
                 });
             }
 
+            const fileSizeInKB = req.file.size / 1024;
+            const uploadCharge = (0.002 * (fileSizeInKB / 100)).toFixed(6); // 0.002 ETH per 100KB for upload
+            const rewardAmount = (0.005 * (fileSizeInKB / 100)).toFixed(6); // 0.003 ETH per 100KB for reward
+            console.log(`Calculated reward for ${fileSizeInKB}KB: ${rewardAmount} ETH`);
+            console.log(`Upload charge for ${fileSizeInKB}KB: ${uploadCharge} ETH`);
+            await sendReward(ethAddress, rewardAmount);
+            console.log(`Reward of ${rewardAmount} ETH sent to ${ethAddress}`);
+
             res.json({
                 success: true,
                 data: {
@@ -392,7 +471,9 @@ app.post('/api/upload', (req, res) => {
                         viewUrl: `https://gateway.pinata.cloud/ipfs/${response.IpfsHash}`,
                         gateway: `https://gateway.pinata.cloud/ipfs/${response.IpfsHash}`
                     },
-                    fileData: fileData
+                    fileData: fileData,
+                    reward: rewardAmount,
+                    uploadCharge: uploadCharge
                 }
             });
 
