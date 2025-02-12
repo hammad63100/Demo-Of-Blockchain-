@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain File Upload System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --secondary-color: #818cf8;
+            --success-color: #22c55e;
+            --error-color: #ef4444;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-color: #1e293b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+
+        body {
+            background: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 2rem 0;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h2 {
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .auth-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        button {
+            background: var(--primary-color);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        button:hover {
+            background: var(--secondary-color);
+            transform: translateY(-2px);
+        }
+
+        .file-upload {
+            border: 2px dashed #e2e8f0;
+            padding: 2rem;
+            text-align: center;
+            border-radius: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .file-upload:hover {
+            border-color: var(--primary-color);
+            background: #f8fafc;
+        }
+
+        .file-upload i {
+            font-size: 2rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .success {
+            color: #ffffff;
+            background: var(--success-color);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .error {
+            color: #ffffff;
+            background: var(--error-color);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .blockchain-data {
+            background: #1e293b;
+            color: #f8fafc;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin-top: 1rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading {
+            animation: spin 1s linear infinite;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .file-details {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f8fafc;
+            border-radius: 0.5rem;
+            border: 1px solid #e2e8f0;
+        }
+
+        .file-details h3 {
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .details-content {
+            font-size: 0.9rem;
+        }
+
+        .details-content p {
+            margin: 0.5rem 0;
+        }
+
+        .details-content a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .details-content a:hover {
+            text-decoration: underline;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .status-item {
+            background: #f8fafc;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+            transition: transform 0.3s ease;
+        }
+
+        .status-item:hover {
+            transform: translateY(-5px);
+        }
+
+        .status-item i {
+            font-size: 2rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .status-item h3 {
+            color: var(--text-color);
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .status-item p {
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        .status-item p.disconnected {
+            color: var(--error-color);
+        }
+
+        .status-item p.connected {
+            color: var(--success-color);
+        }
+
+        .logout-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: var(--error-color);
+            color: white;
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: #dc2626;
+        }
+
+        /* Add new styles for peer functionality */
+        .peer-list {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: var(--card-bg);
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .peer-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .peer-item:last-child {
+            border-bottom: none;
+        }
+
+        .notification {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--primary-color);
+            color: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/gh/ethereum/web3.js@1.3.0/dist/web3.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        <header class="header">
+            <h1><i class="fas fa-link"></i> Blockchain File Upload System</h1>
+            <p>Secure file storage using blockchain technology</p>
+            <div id="welcomeMessage" style="margin-top: 10px; font-size: 1.2rem; display: none;">
+                Welcome, <span id="userNameDisplay"></span>!
+            </div>
+        </header>
+
+        <!-- Authentication Section -->
+        <div class="card" id="authSection">
+            <h2><i class="fas fa-user-shield"></i> Authentication</h2>
+            <div class="auth-container">
+                <div id="loginContainer">
+                    <h3>Login</h3>
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <input type="text" id="loginUsername" placeholder="Username" required>
+                        </div>
+                        <div class="form-group">
+                            <input type="password" id="loginPassword" placeholder="Password" required>
+                        </div>
+                        <button type="submit">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </button>
+                    </form>
+                    <p>Don't have an account? <a href="#" id="showRegister">Register here</a></p>
+                </div>
+                <div id="registerContainer" style="display: none;">
+                    <h3>Register</h3>
+                    <form id="registerForm">
+                        <div class="form-group">
+                            <input type="text" id="regUsername" placeholder="Username" required>
+                        </div>
+                        <div class="form-group">
+                            <input type="password" id="regPassword" placeholder="Password" required>
+                        </div>
+                        <button type="submit">
+                            <i class="fas fa-user-plus"></i> Register
+                        </button>
+                    </form>
+                    <p>Already have an account? <a href="#" id="showLogin">Login here</a></p>
+                </div>
+            </div>
+            <div id="authStatus"></div>
+        </div>
+
+        <!-- Status Section -->
+        <div class="card" id="statusSection" style="display: none;">
+            <h2><i class="fas fa-chart-line"></i> System Status</h2>
+            <div id="statusContainer">
+                <div class="status-grid">
+                    <div class="status-item">
+                        <i class="fas fa-server"></i>
+                        <h3>Pinata Connection</h3>
+                        <p id="pinataStatus">Checking...</p>
+                    </div>
+                    <div class="status-item">
+                        <i class="fas fa-file"></i>
+                        <h3>Total Files</h3>
+                        <p id="totalFiles">-</p>
+                    </div>
+                    <div class="status-item">
+                        <i class="fas fa-database"></i>
+                        <h3>Total Size</h3>
+                        <p id="totalSize">-</p>
+                    </div>
+                    <div class="status-item">
+                        <i class="fas fa-clock"></i>
+                        <h3>Last Upload</h3>
+                        <p id="lastUpload">-</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- File Upload Section -->
+        <div class="card" id="uploadSection" style="display: none;">
+            <h2><i class="fas fa-cloud-upload-alt"></i> File Upload</h2>
+            <form id="uploadForm">
+                <div class="file-upload">
+                    <i class="fas fa-file-upload"></i>
+                    <p>Drag and drop your file here or click to browse</p>
+                    <input type="file" id="fileInput" name="file" required style="display: none">
+                </div>
+                <button type="submit" style="margin-top: 1rem;">
+                    <i class="fas fa-upload"></i> Upload File
+                </button>
+            </form>
+            <div id="uploadStatus"></div>
+            <div id="fileDetails" class="file-details" style="display:none;">
+                <h3>File Details</h3>
+                <div class="details-content"></div>
+            </div>
+        </div>
+
+        <!-- Blockchain Data Section -->
+        <div class="card" id="blockchainSection" style="display: none;">
+            <h2><i class="fas fa-database"></i> Blockchain Data</h2>
+            <button id="refreshData">
+                <i class="fas fa-sync-alt"></i> Refresh Data
+            </button>
+            <div id="blockchainData" class="blockchain-data"></div>
+        </div>
+    </div>
+
+    <script>
+        // Update API URL and add RECEIVER_ADDRESS constant
+        const API_URL = 'http://localhost:3001/api';
+        const RECEIVER_ADDRESS = '0x46299ac2A9DBaf393DC7B00A53A4B6894cB78F3E';
+
+        // Remove dynamic hostname check since we know the backend port
+        
+        // Add error handler function
+        const handleApiError = async (response) => {
+            if (!response.ok) {
+                let errorMessage;
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.message;
+                } catch (e) {
+                    errorMessage = response.statusText;
+                }
+                throw new Error(errorMessage || 'API request failed');
+            }
+            return response;
+        };
+
+        // Toggle between login and register forms
+        document.getElementById('showRegister').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('loginContainer').style.display = 'none';
+            document.getElementById('registerContainer').style.display = 'block';
+        });
+
+        document.getElementById('showLogin').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('registerContainer').style.display = 'none';
+            document.getElementById('loginContainer').style.display = 'block';
+        });
+
+        // Check login state on page load
+        window.addEventListener('load', () => {
+            if (localStorage.getItem('loggedIn') === 'true') {
+                document.getElementById('authSection').style.display = 'none';
+                document.getElementById('statusSection').style.display = 'block';
+                document.getElementById('uploadSection').style.display = 'block';
+                document.getElementById('blockchainSection').style.display = 'block';
+                document.getElementById('welcomeMessage').style.display = 'block';
+                document.getElementById('userNameDisplay').textContent = localStorage.getItem('username');
+                updateSystemStatus();
+                refreshBlockchainData();
+            }
+        });
+
+        // File upload preview
+        const fileUpload = document.querySelector('.file-upload');
+        const fileInput = document.getElementById('fileInput');
+
+        fileUpload.addEventListener('click', () => fileInput.click());
+        fileUpload.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUpload.style.borderColor = 'var(--primary-color)';
+            fileUpload.style.background = '#f8fafc';
+        });
+
+        fileUpload.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            fileUpload.style.borderColor = '#e2e8f0';
+            fileUpload.style.background = 'transparent';
+        });
+
+        fileUpload.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileInput.files = e.dataTransfer.files;
+            fileUpload.style.borderColor = '#e2e8f0';
+            fileUpload.style.background = 'transparent';
+            if (e.dataTransfer.files.length > 0) {
+                fileUpload.querySelector('p').textContent = `Selected file: ${e.dataTransfer.files[0].name}`;
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                fileUpload.querySelector('p').textContent = `Selected file: ${e.target.files[0].name}`;
+            }
+        });
+
+        // Register functionality
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const authStatus = document.getElementById('authStatus');
+            try {
+                const response = await fetch(`${API_URL}/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: document.getElementById('regUsername').value,
+                        password: document.getElementById('regPassword').value
+                    })
+                });
+                const data = await response.json();
+                authStatus.innerHTML = `
+                    <div class="success fade-in">
+                        <i class="fas fa-check-circle"></i>
+                        <span>${data.message}</span>
+                    </div>
+                `;
+                document.getElementById('regUsername').value = '';
+                document.getElementById('regPassword').value = '';
+            } catch (error) {
+                authStatus.innerHTML = `
+                    <div class="error fade-in">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <span>Registration failed: ${error.message}</span>
+                    </div>
+                `;
+            }
+        });
+
+        // Login functionality
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const authStatus = document.getElementById('authStatus');
+            try {
+                const response = await fetch(`${API_URL}/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: document.getElementById('loginUsername').value,
+                        password: document.getElementById('loginPassword').value
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    authStatus.innerHTML = `
+                        <div class="success fade-in">
+                            <i class="fas fa-check-circle"></i>
+                            <span>${data.message}</span>
+                        </div>
+                    `;
+                    localStorage.setItem('loggedIn', 'true');
+                    localStorage.setItem('username', document.getElementById('loginUsername').value);
+                    document.getElementById('authSection').style.display = 'none';
+                    document.getElementById('statusSection').style.display = 'block';
+                    document.getElementById('uploadSection').style.display = 'block';
+                    document.getElementById('blockchainSection').style.display = 'block';
+                    document.getElementById('welcomeMessage').style.display = 'block';
+                    document.getElementById('userNameDisplay').textContent = localStorage.getItem('username');
+                    updateSystemStatus();
+                    refreshBlockchainData();
+                    
+                    // Connect WebSocket after successful login
+                    connectWebSocket();
+                } else {
+                    authStatus.innerHTML = `
+                        <div class="error fade-in">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <span>Login failed: ${data.message}</span>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                authStatus.innerHTML = `
+                    <div class="error fade-in">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <span>Login failed: ${error.message}</span>
+                    </div>
+                `;
+            }
+        });
+
+        // Add network configuration
+        const SEPOLIA_CHAIN_ID = '0xaa36a7'; // Chain ID for Sepolia
+        
+        // Function to ensure correct network
+        async function ensureSepoliaNetwork() {
+            try {
+                await ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: SEPOLIA_CHAIN_ID }],
+                });
+            } catch (error) {
+                if (error.code === 4902) {
+                    await ethereum.request({
+                        method: 'wallet_addEthereumChain',
+                        params: [{
+                            chainId: SEPOLIA_CHAIN_ID,
+                            chainName: 'Sepolia Test Network',
+                            nativeCurrency: {
+                                name: 'SepoliaETH',
+                                symbol: 'ETH',
+                                decimals: 18
+                            },
+                            rpcUrls: ['https://sepolia.infura.io/v3/'],
+                            blockExplorerUrls: ['https://sepolia.etherscan.io']
+                        }]
+                    });
+                }
+            }
+        }
+
+        // Update the file upload event listener
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = localStorage.getItem('username');
+            if (!username) {
+                showNotification('Please login first', 'error');
+                return;
+            }
+
+            try {
+                // Ensure we're on Sepolia network
+                await ensureSepoliaNetwork();
+                
+                // Request account access
+                await requestAccount();
+                const accounts = await ethereum.request({ method: 'eth_accounts' });
+                if (accounts.length === 0) {
+                    showNotification('Please connect to MetaMask', 'error');
+                    return;
+                }
+
+                const fileInput = document.getElementById('fileInput');
+                if (!fileInput.files[0]) {
+                    showNotification('Please select a file', 'error');
+                    return;
+                }
+
+                // Initialize Web3 and process payment
+                try {
+                    const senderAccount = accounts[0];
+                    const web3 = new Web3(window.ethereum);
+                    const nonce = await web3.eth.getTransactionCount(senderAccount, 'latest');
+                    const gasPrice = await web3.eth.getGasPrice();
+                    const adjustedGasPrice = Math.floor(Number(gasPrice) * 1.1).toString();
+
+                    const fileSizeInKB = fileInput.files[0].size / 1024;
+                    const ethAmount = (0.0002 * fileSizeInKB).toFixed(6);
+
+                    const transactionParameters = {
+                        nonce: web3.utils.toHex(nonce),
+                        to: RECEIVER_ADDRESS,
+                        from: senderAccount,
+                        value: web3.utils.toHex(web3.utils.toWei(ethAmount, 'ether')),
+                        gas: web3.utils.toHex(21000),
+                        gasPrice: web3.utils.toHex(adjustedGasPrice),
+                        chainId: parseInt(SEPOLIA_CHAIN_ID, 16)
+                    };
+
+                    showNotification('Please confirm the transaction in MetaMask...', 'info');
+                    const txHash = await ethereum.request({
+                        method: 'eth_sendTransaction',
+                        params: [transactionParameters],
+                    });
+
+                    console.log('Transaction hash:', txHash);
+                    showNotification('Payment confirmed! Processing upload...', 'success');
+
+                    // Now proceed with file upload
+                    const formData = new FormData();
+                    formData.append('file', fileInput.files[0]);
+
+                    const uploadResponse = await fetch(`${API_URL}/upload`, {
+                        method: 'POST',
+                        headers: {
+                            'X-User-Name': username
+                        },
+                        body: formData
+                    });
+
+                    if (!uploadResponse.ok) {
+                        const errorData = await uploadResponse.json();
+                        throw new Error(errorData.message || 'Upload failed');
+                    }
+
+                    const uploadResult = await uploadResponse.json();
+                    
+                    if (uploadResult.success) {
+                        showNotification('File uploaded successfully!', 'success');
+                        document.getElementById('fileDetails').style.display = 'block';
+                        document.getElementById('fileDetails').querySelector('.details-content').innerHTML = `
+                            <p><strong>File Name:</strong> ${uploadResult.data.fileData.fileName}</p>
+                            <p><strong>File Size:</strong> ${formatFileSize(uploadResult.data.fileData.fileSize)}</p>
+                            <p><strong>IPFS Hash:</strong> ${uploadResult.data.ipfs.hash}</p>
+                            <p><strong>View File:</strong> <a href="${uploadResult.data.ipfs.viewUrl}" target="_blank">Open in IPFS</a></p>
+                        `;
+                        // Clear the file input
+                        fileInput.value = '';
+                        fileUpload.querySelector('p').textContent = 'Drag and drop your file here or click to browse';
+                        
+                        // Refresh blockchain data
+                        refreshBlockchainData();
+                    }
+
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    showNotification('Upload failed: ' + error.message, 'error');
+                }
+
+            } catch (error) {
+                console.error('Transaction failed:', error);
+                showNotification('Transaction failed: ' + (error.message || 'Unknown error'), 'error');
+            }
+        });
+
+        // Add file size formatter
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Blockchain data refresh functionality
+        async function refreshBlockchainData() {
+            const dataDiv = document.getElementById('blockchainData');
+            const refreshBtn = document.getElementById('refreshData');
+            try {
+                refreshBtn.innerHTML = '<i class="fas fa-spinner loading"></i> Refreshing...';
+                const response = await fetch(`${API_URL}/blockchain`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+                await handleApiError(response);
+                const data = await response.json();
+                if (data.success) {
+                    dataDiv.innerHTML = JSON.stringify(data.data, null, 2);
+                } else {
+                    showNotification('Failed to fetch blockchain data', 'error');
+                }
+            } catch (error) {
+                showNotification('Error: ' + error.message, 'error');
+            } finally {
+                refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Data';
+            }
+        }
+
+        function showNotification(message, type) {
+            const status = document.getElementById('uploadStatus');
+            status.innerHTML = `
+                <div class="${type} fade-in">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+        }
+
+        document.getElementById('refreshData').addEventListener('click', refreshBlockchainData);
+
+        // Initial load of blockchain data
+        refreshBlockchainData();
+
+        async function updateSystemStatus() {
+            try {
+                const response = await fetch(`${API_URL}/status`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+                await handleApiError(response);
+                const data = await response.json();
+                
+                const pinataStatus = document.getElementById('pinataStatus');
+                const totalFiles = document.getElementById('totalFiles');
+                const totalSize = document.getElementById('totalSize');
+                const lastUpload = document.getElementById('lastUpload');
+
+                if (data.success) {
+                    pinataStatus.textContent = 'Connected';
+                    pinataStatus.className = 'connected';
+                    totalFiles.textContent = data.stats.totalFiles;
+                    totalSize.textContent = formatFileSize(data.stats.totalSize);
+                    lastUpload.textContent = data.stats.lastUpload 
+                        ? new Date(data.stats.lastUpload).toLocaleString()
+                        : 'No uploads yet';
+                } else {
+                    pinataStatus.textContent = 'Disconnected';
+                    pinataStatus.className = 'disconnected';
+                }
+            } catch (error) {
+                document.getElementById('pinataStatus').textContent = 'Error';
+                document.getElementById('pinataStatus').className = 'disconnected';
+                console.error('Status update failed:', error);
+            }
+        }
+
+        updateSystemStatus();
+        // Logout functionality
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                await fetch(`${API_URL}/logout`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                
+                if (ws) {
+                    ws.send(JSON.stringify({
+                        type: 'disconnect',
+                        username: localStorage.getItem('username')
+                    }));
+                }
+                
+                localStorage.setItem('loggedIn', 'false');
+                localStorage.removeItem('username');
+                document.getElementById('authSection').style.display = 'block';
+                document.getElementById('statusSection').style.display = 'none';
+                document.getElementById('uploadSection').style.display = 'none';
+                document.getElementById('blockchainSection').style.display = 'none';
+                document.getElementById('welcomeMessage').style.display = 'none';
+                document.getElementById('userNameDisplay').textContent = '';
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+        });
+
+        // Check if MetaMask is installed
+        if (typeof window.ethereum !== 'undefined') {
+            console.log('MetaMask is installed!');
+        } else {
+            alert('Please install MetaMask to use this feature.');
+        }
+
+        // Request account access if needed
+        async function requestAccount() {
+            await window.ethereum.request({ method: 'eth_requestAccounts' });
+        }
+
+        // Add WebSocket connection
+        let ws;
+        const connectWebSocket = () => {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}`;
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                if (localStorage.getItem('loggedIn') === 'true') {
+                    ws.send(JSON.stringify({
+                        type: 'register',
+                        username: localStorage.getItem('username')
+                    }));
+                }
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                switch(data.type) {
+                    case 'peerList':
+                        updatePeerList(data.peers);
+                        break;
+                    case 'newFile':
+                        handleNewFileNotification(data);
+                        break;
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected. Reconnecting...');
+                setTimeout(connectWebSocket, 3000);
+            };
+        };
+
+        // Add peer list update function
+        function updatePeerList(peers) {
+            const peersList = document.getElementById('peersList');
+            peersList.innerHTML = '';
+            peers.forEach(peer => {
+                const peerElement = document.createElement('div');
+                peerElement.className = 'peer-item';
+                peerElement.innerHTML = `
+                    <i class="fas fa-user"></i>
+                    <span>${peer}</span>
+                    ${peer === localStorage.getItem('username') ? ' (You)' : ''}
+                `;
+                peersList.appendChild(peerElement);
+            });
+        }
+
+        // Add new file notification handler
+        function handleNewFileNotification(data) {
+            const notification = document.createElement('div');
+            notification.className = 'notification fade-in';
+            notification.innerHTML = `
+                <i class="fas fa-file-upload"></i>
+                <span>${data.uploader} uploaded a new file: ${data.file.fileName}</span>
+            `;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 5000);
+        }
+    </script>
+</body>
+</html>
