@@ -1,22 +1,59 @@
-const express = require('express');
-const multer = require('multer');
-const crypto = require('crypto');
-const pinataSDK = require('@pinata/sdk');
-const fs = require('fs');
-const cors = require('cors');
-const path = require('path');
-const session = require('express-session');
-const WebSocket = require('ws');
-const http = require('http');
-const {Web3} = require('web3');
+import express from 'express';
+import multer from 'multer';
+import crypto from 'crypto';
+import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import cors from 'cors';
+import session from 'express-session';
+import { WebSocketServer } from 'ws';
+import { createServer } from 'http';
+import Web3 from 'web3';
+import P2PNode from './p2p-node.js';
+import dotenv from 'dotenv';
+import { Readable } from 'stream';
+import { Blockchain, Block } from './blockchain.js';
+import pinataSDK from '@pinata/sdk';
+import fs from 'fs/promises';
+import { existsSync, createReadStream, mkdirSync } from 'fs';
+import axios from 'axios';
+import { QRYPTUM_CONFIG } from './config/network.js';
+import { ethers } from 'ethers';
+import { v4 as uuidv4 } from 'uuid';
 
+const require = createRequire(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load environment variables at the very start
+dotenv.config();
+
+// Initialize blockchain as soon as possible after imports
+const blockchain = new Blockchain();
+
+// Create app and server with new imports
 const app = express();
-const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+const server = createServer(app);
+const wss = new WebSocketServer({ server });
 
-const web3 = new Web3('https://sepolia.infura.io/v3/e28cb1d3858f43f6b6f0e66fb42fcead'); // Update with your Infura project ID
+// Initialize web3 and constants
+const web3 = new Web3(QRYPTUM_CONFIG.RPC_URL);
 const SENDER_PRIVATE_KEY = 'cdeb7422343d69a60f35529c32f130c178c8fb5d470929cdff325369bf533f2d'; // Update with your private key
 const SENDER_ADDRESS = '0x46299ac2A9DBaf393DC7B00A53A4B6894cB78F3E'; // Update with your address
+
+// Initialize ethers provider and QryptToken contract
+const provider = new ethers.providers.JsonRpcProvider(QRYPTUM_CONFIG.RPC_URL);
+
+// Remove QRYPT token initialization
+// let qryptToken;
+
+async function initializeContracts() {
+    try {
+        console.log('QryptToken contract initialized');
+    } catch (error) {
+        console.error('Failed to initialize contracts:', error);
+    }
+}
 
 // Peer connections storage
 const peers = new Map();
@@ -49,7 +86,7 @@ app.options('*', cors(corsOptions));
 app.use(express.json());
 
 // Update express static file serving
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(join(__dirname)));
 
 // Add headers middleware before routes
 app.use((req, res, next) => {
@@ -61,68 +98,75 @@ app.use((req, res, next) => {
 
 // In-memory storage (replace with database in production)
 const users = new Map();
-const blockchain = [];
 
 // In-memory storage for uploaded files
 const uploadedFiles = [];
 
-// Pinata setup
-const pinata = new pinataSDK('71cab20ce1ad034f1a65', '876a8721c6e8bed6905cad402e6e4f8155aa6262c207a75956e6ace2ab314b56');
+// Add new retry utility
+const retryOperation = async (operation, maxRetries = 3, delay = 1000) => {
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            return await operation();
+        } catch (err) {
+            if (i === maxRetries - 1) throw err;
+            await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+        }
+    }
+};
+
+// Update Pinata initialization with retry logic
+const initPinata = async () => {
+    return await retryOperation(async () => {
+        const pinata = new pinataSDK({
+            pinataApiKey: process.env.PINATA_API_KEY || '71cab20ce1ad034f1a65',
+            pinataSecretApiKey: process.env.PINATA_SECRET_KEY || '876a8721c6e8bed6905cad402e6e4f8155aa6262c207a75956e6ace2ab314b56'
+        });
+        await pinata.testAuthentication();
+        return pinata;
+    });
+};
+
+// Update Pinata initialization
+const pinata = await initPinata();
 
 // Update upload directory to use absolute path
-const uploadDir = path.join(__dirname, 'uploads');
+const uploadDir = join(__dirname, 'uploads');
 
 // Create uploads directory if it doesn't exist with proper error handling
 try {
-    if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
+    if (!existsSync(uploadDir)) {
+        mkdirSync(uploadDir, { recursive: true });
     }
 } catch (err) {
     console.error('Error creating uploads directory:', err);
     process.exit(1);
 }
 
-// Update Multer setup with absolute path
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        // Sanitize filename
-        const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-        cb(null, Date.now() + '-' + sanitizedName);
-    }
-});
-
-// Update the upload middleware with simplified logging
-const upload = multer({ 
-    storage: storage,
+// Remove local storage configuration and keep only metadata storage
+const uploadMiddleware = multer({
+    storage: multer.memoryStorage(), // Change to memory storage instead of disk
     limits: {
-        fileSize: 100 * 1024 * 1024 // Increased to 50MB limit
-    },
-    fileFilter: (req, file, cb) => {
-        // Accept all file types
-        cb(null, true);
+        fileSize: 100 * 1024 * 1024 // 100MB limit
     }
 }).single('file');
 
-const usersFilePath = path.join(__dirname, 'users.json');
+const usersFilePath = join(__dirname, 'users.json');
 
 // Function to save users data to JSON file
-const saveUsers = () => {
+const saveUsers = async () => {
     try {
         const usersArray = Array.from(users.entries());
-        fs.writeFileSync(usersFilePath, JSON.stringify(usersArray, null, 2));
+        await fs.writeFile(usersFilePath, JSON.stringify(usersArray, null, 2));
     } catch (err) {
         console.error('Error saving users data:', err);
     }
 };
 
 // Function to load users data from JSON file
-const loadUsers = () => {
+const loadUsers = async () => {
     try {
-        if (fs.existsSync(usersFilePath)) {
-            const data = fs.readFileSync(usersFilePath);
+        if (existsSync(usersFilePath)) {
+            const data = await fs.readFile(usersFilePath, 'utf8');
             const usersArray = JSON.parse(data);
             usersArray.forEach(([username, password]) => {
                 users.set(username, password);
@@ -209,22 +253,22 @@ const calculateHash = (block) => {
     return crypto.createHash('sha256').update(blockString).digest('hex');
 };
 
-const uploadedFilesPath = path.join(__dirname, 'uploadedFiles.json');
+const uploadedFilesPath = join(__dirname, 'uploadedFiles.json');
 
 // Function to save uploaded files data to JSON file
-const saveUploadedFiles = () => {
+const saveUploadedFiles = async () => {
     try {
-        fs.writeFileSync(uploadedFilesPath, JSON.stringify(uploadedFiles, null, 2));
+        await fs.writeFile(uploadedFilesPath, JSON.stringify(uploadedFiles, null, 2));
     } catch (err) {
         console.error('Error saving uploaded files data:', err);
     }
 };
 
 // Function to load uploaded files data from JSON file
-const loadUploadedFiles = () => {
+const loadUploadedFiles = async () => {
     try {
-        if (fs.existsSync(uploadedFilesPath)) {
-            const data = fs.readFileSync(uploadedFilesPath);
+        if (existsSync(uploadedFilesPath)) {
+            const data = await fs.readFile(uploadedFilesPath, 'utf8');
             return JSON.parse(data);
         }
     } catch (err) {
@@ -234,303 +278,607 @@ const loadUploadedFiles = () => {
 };
 
 // Load uploaded files data on server start
-const loadedFiles = loadUploadedFiles();
+const loadedFiles = await loadUploadedFiles();
 uploadedFiles.push(...loadedFiles);
 
-const blockchainFilePath = path.join(__dirname, 'blockchain.json');
+const blockchainFilePath = join(__dirname, 'blockchain.json');
 
 // Function to save blockchain data to JSON file
-const saveBlockchain = () => {
+const saveBlockchain = async () => {
     try {
-        fs.writeFileSync(blockchainFilePath, JSON.stringify(blockchain, null, 2));
+        await fs.writeFile(blockchainFilePath, JSON.stringify(blockchain, null, 2));
     } catch (err) {
         console.error('Error saving blockchain data:', err);
     }
 };
 
-// Function to load blockchain data from JSON file
-const loadBlockchain = () => {
+// Move loadBlockchain function definition before it's used
+const loadBlockchain = async () => {
     try {
-        if (fs.existsSync(blockchainFilePath)) {
-            const data = fs.readFileSync(blockchainFilePath);
-            const loadedBlockchain = JSON.parse(data);
-            blockchain.push(...loadedBlockchain);
-        }
+        await blockchain.init();
+        console.log('Blockchain loaded successfully');
     } catch (err) {
-        console.error('Error loading blockchain data:', err);
+        console.error('Error loading blockchain:', err);
+        // Reset chain if loading fails
+        blockchain.chain = [];
+        await blockchain.createGenesisBlock();
     }
 };
 
-// Load blockchain data on server start
-loadBlockchain();
+// Initialize blockchain before server starts
+const initializeBlockchain = async () => {
+    try {
+        await loadBlockchain();
+    } catch (err) {
+        console.error('Failed to initialize blockchain:', err);
+        process.exit(1);
+    }
+};
 
 // Add delay function
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Function to send reward with improved error handling and gas estimation
-const sendReward = async (receiverAddress, amount) => {
+// Update the reward calculation function
+const calculateReward = (fileSizeInBytes) => {
     try {
-        // Check if addresses are valid
-        if (!web3.utils.isAddress(receiverAddress) || !web3.utils.isAddress(SENDER_ADDRESS)) {
-            throw new Error('Invalid Ethereum address');
-        }
-
-        // Get sender's balance and convert amount to Wei
-        const balance = BigInt(await web3.eth.getBalance(SENDER_ADDRESS));
-        const amountInWei = BigInt(web3.utils.toWei(amount.toString(), 'ether'));
-        
-        // Compare balances using BigInt
-        if (balance < amountInWei) {
-            throw new Error(`Insufficient balance. Have: ${web3.utils.fromWei(balance.toString(), 'ether')} ETH, Need: ${amount} ETH`);
-        }
-
-        const nonce = await web3.eth.getTransactionCount(SENDER_ADDRESS, 'latest');
-        const gasPrice = await web3.eth.getGasPrice();
-        
-        // Estimate gas
-        const gasEstimate = await web3.eth.estimateGas({
-            to: receiverAddress,
-            from: SENDER_ADDRESS,
-            value: amountInWei.toString()
-        });
-        
-        const gasLimit = Math.ceil(Number(gasEstimate) * 1.2); // Add 20% buffer
-
-        const transaction = {
-            from: SENDER_ADDRESS,
-            to: receiverAddress,
-            value: amountInWei.toString(),
-            gas: gasLimit,
-            gasPrice: web3.utils.toHex(gasPrice),
-            nonce: nonce,
-            chainId: 11155111 // Sepolia chain ID
-        };
-
-        console.log('Sending transaction:', {
-            from: SENDER_ADDRESS,
-            to: receiverAddress,
-            value: `${amount} ETH`,
-            gasLimit,
-            gasPrice: web3.utils.fromWei(gasPrice, 'gwei') + ' gwei'
-        });
-
-        const signedTx = await web3.eth.accounts.signTransaction(transaction, SENDER_PRIVATE_KEY);
-        const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
-        
-        console.log('Transaction successful:', receipt.transactionHash);
-        return receipt;
+        const fileSizeInKB = fileSizeInBytes / 1024;
+        const reward = (QRYPTUM_CONFIG.UPLOAD_REWARD * (fileSizeInKB / 100));
+        return reward > 0 ? reward.toFixed(6) : QRYPTUM_CONFIG.UPLOAD_REWARD.toFixed(6);
     } catch (error) {
-        console.error('Detailed error:', error);
-        if (error.message.includes('insufficient funds')) {
-            throw new Error('Insufficient funds in sender account');
-        } else if (error.message.includes('nonce')) {
-            throw new Error('Nonce error - please try again');
-        } else {
-            throw new Error(`Transaction failed: ${error.message}`);
+        console.error('Error calculating reward:', error);
+        return QRYPTUM_CONFIG.UPLOAD_REWARD.toFixed(6);
+    }
+};
+
+// Add upload charge calculation function
+const calculateUploadCharge = (fileSizeInBytes) => {
+    const fileSizeInKB = fileSizeInBytes / 1024;
+    return (QRYPTUM_CONFIG.UPLOAD_CHARGE * (fileSizeInKB / 100)).toFixed(6);
+};
+
+// Add rate limiting configuration
+const TX_RATE_LIMIT = 1; // Lower to 1 transaction per minute
+const TX_QUEUE = new Map();
+const TX_TIMEOUT = 60000; // 1 minute timeout
+let lastTxTime = 0;
+
+// Add delay utility function
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Add queue management functions
+const addToQueue = (receiverAddress, transaction) => {
+    TX_QUEUE.set(receiverAddress, {
+        transaction,
+        timestamp: Date.now()
+    });
+};
+
+const processQueue = async () => {
+    for (const [address, data] of TX_QUEUE) {
+        if (Date.now() - data.timestamp >= TX_TIMEOUT) {
+            TX_QUEUE.delete(address);
+            continue;
+        }
+        
+        try {
+            await executeTransaction(data.transaction);
+            TX_QUEUE.delete(address);
+        } catch (error) {
+            if (!error.message.includes('Too Many Requests')) {
+                TX_QUEUE.delete(address);
+            }
         }
     }
 };
 
-// Update the upload endpoint with better error handling and logging
-// Modified upload endpoint to include session verification
-app.post('/api/upload', (req, res) => {
-    // Remove session check since we'll handle auth through localStorage
-    upload(req, res, async function(err) {
-        if (err) {
-            console.error('Upload error:', err.message);
-            return res.status(500).json({
-                success: false,
-                message: `Upload failed: ${err.message}`
-            });
+// Add transaction execution function with retry logic
+const executeTransactionWithRetry = async (transaction) => {
+    return await exponentialBackoff(async () => {
+        const web3 = new Web3(process.env.ETH_RPC_URL);
+        const signedTx = await web3.eth.accounts.signTransaction(transaction, SENDER_PRIVATE_KEY);
+        return await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+    });
+};
+
+// Update the sendReward function with enhanced error handling and rate limiting
+// Removed duplicate sendReward function
+
+// Add queue processor interval
+setInterval(processQueue, 60000); // Process queue every minute
+
+// Update file uniqueness check function
+const checkFileUniqueness = async (fileBuffer, fileType) => {
+    const supportedFormats = ['application/pdf', 'application/json', 'text/csv', 'text/plain'];
+    if (!supportedFormats.includes(fileType)) {
+        throw new Error('Unsupported file format. Please upload a PDF, JSON, CSV, or TXT file.');
+    }
+
+    try {
+        const formData = new FormData();
+        const blob = new Blob([fileBuffer], { type: fileType });
+        const file = new File([blob], 'upload.bin', { type: fileType });
+        formData.append('file', file);
+
+        const response = await axios.post('https://qryptum-ai.onrender.com/upload/', formData, {
+            headers: {
+                'accept': 'application/json',
+                'Content-Type': 'multipart/form-data'
+            },
+            maxBodyLength: Infinity
+        });
+
+        console.log('Uniqueness check response:', response.data);
+        
+        if (response.data.error) {
+            throw new Error(response.data.error);
+        }
+        
+        if (response.data && typeof response.data.uniqueness_score === 'number') {
+            return response.data.uniqueness_score;
+        }
+        
+        throw new Error('Invalid response format from uniqueness check service');
+    } catch (error) {
+        console.error('Error checking file uniqueness:', error);
+        throw new Error(error.message || 'Failed to check file uniqueness');
+    }
+};
+
+// Add rate limit handling utility
+const handleRateLimit = async (operation, maxRetries = 5, initialDelay = 1000) => {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            return await operation();
+        } catch (error) {
+            if (error.message.includes('Too Many Requests')) {
+                const delay = initialDelay * Math.pow(2, attempt);
+                console.log(`Rate limited. Waiting ${delay/1000} seconds before retry ${attempt + 1}/${maxRetries}`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                continue;
+            }
+            throw error;
+        }
+    }
+    throw new Error('Max retries reached for rate limited operation');
+};
+
+// Add new transaction retry utility with exponential backoff
+const executeTransactionWithBackoff = async (transaction, maxAttempts = 5) => {
+    let attempt = 0;
+    while (attempt < maxAttempts) {
+        try {
+            const signedTx = await web3.eth.accounts.signTransaction(transaction, SENDER_PRIVATE_KEY);
+            return await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+        } catch (error) {
+            attempt++;
+            if (!error.message.includes('Too Many Requests') || attempt === maxAttempts) {
+                throw error;
+            }
+            const delay = Math.min(1000 * Math.pow(2, attempt), 30000); // Max 30 seconds delay
+            console.log(`Transaction rate limited. Waiting ${delay/1000} seconds before retry ${attempt}/${maxAttempts}`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+    throw new Error('Max retry attempts reached');
+};
+
+// Add a new function to handle ETH transfers
+async function handleRewardTransfer(userAddress, amount) {
+    try {
+        const amountInWei = web3.utils.toWei(amount.toString(), 'ether');
+        const transaction = {
+            from: SENDER_ADDRESS,
+            to: userAddress,
+            value: amountInWei,
+            gas: '21000',
+            gasPrice: await web3.eth.getGasPrice()
+        };
+
+        const signedTx = await web3.eth.accounts.signTransaction(transaction, SENDER_PRIVATE_KEY);
+        const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+        
+        return {
+            success: true,
+            receipt,
+            details: {
+                from: SENDER_ADDRESS,
+                to: userAddress,
+                value: amount + ' ETH',
+                status: 'completed'
+            }
+        };
+    } catch (error) {
+        console.error('Reward transfer failed:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+// Update the sendReward function
+const sendReward = async (receiverAddress, fileSizeInBytes) => {
+    try {
+        if (!receiverAddress || !fileSizeInBytes) {
+            throw new Error('Invalid parameters for reward calculation');
         }
 
+        const rewardAmount = calculateReward(fileSizeInBytes);
+        const rewardResult = await handleRewardTransfer(receiverAddress, rewardAmount);
+
+        if (!rewardResult.success) {
+            throw new Error('Failed to send reward: ' + rewardResult.error);
+        }
+
+        return rewardResult;
+
+    } catch (error) {
+        console.error('Reward transaction error:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
+
+// Update the upload endpoint to include proper waiting and error handling
+const requestTracker = new Map();
+
+app.post('/api/upload', uploadMiddleware, async (req, res) => {
+    const requestId = uuidv4();
+    
+    try {
         if (!req.file) {
-            console.error('No file provided');
             return res.status(400).json({
                 success: false,
                 message: 'No file provided'
             });
         }
 
-        // Add username from request headers
         const username = req.headers['x-user-name'];
-        if (!username) {
-            return res.status(401).json({
-                success: false,
-                message: 'User not authenticated'
-            });
-        }
-
         const ethAddress = req.body.ethAddress;
 
-        try {
-            // Verify file exists before proceeding
-            if (!fs.existsSync(req.file.path)) {
-                throw new Error('File not found after upload');
-            }
-
-            const filePath = req.file.path;
-            const readableStreamForFile = fs.createReadStream(filePath);
-            const options = {
-                pinataMetadata: {
-                    name: req.file.originalname,
-                    keyvalues: {
-                        timestamp: Date.now(),
-                        type: req.file.mimetype
-                    }
-                },
-                pinataOptions: {
-                    cidVersion: 0
-                }
-            };
-
-            console.log(`📤 Starting upload to Pinata: ${req.file.originalname}`);
-            
-            // Add 7-second delay here
-            await delay(7000);
-            
-            // Try to upload to Pinata
-            const response = await pinata.pinFileToIPFS(readableStreamForFile, options);
-            
-            // Verify Pinata upload was successful
-            if (!response || !response.IpfsHash) {
-                throw new Error('Failed to get IPFS hash from Pinata');
-            }
-
-            console.log(`✅ Uploaded successfully to Pinata! Hash: ${response.IpfsHash}`);
-            
-            // Only create and save file data after successful Pinata upload
-            // Add user information to file data
-            const fileData = {
-                fileName: req.file.originalname,
-                fileType: req.file.mimetype,
-                fileSize: req.file.size,
-                ipfsHash: response.IpfsHash,
-                pinataUrl: `https://gateway.pinata.cloud/ipfs/${response.IpfsHash}`,
-                timestamp: new Date().toISOString(),
-                uploadedBy: username,
-                // uploadTime: new Date().toISOString()
-            };
-
-            // Verify file data before adding to records
-            if (!fileData.fileName || !fileData.ipfsHash) {
-                throw new Error('Invalid file data generated');
-            }
-
-            // Add to blockchain and save records only after all verifications pass
-            const previousBlock = blockchain[blockchain.length - 1];
-            const previousHash = previousBlock ? previousBlock.hash : '0';
-            
-            const blockData = {
-                ...fileData,
-                previousHash: previousHash
-            };
-
-            blockData.hash = calculateHash(blockData);
-            
-            // Add to records and save to files
-            blockchain.push(blockData);
-            uploadedFiles.push(fileData);
-
-            // Save both records
-            saveBlockchain();
-            saveUploadedFiles();
-
-            // Clean up
-            readableStreamForFile.destroy();
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
-            }
-
-            // Broadcast file upload to peers
-            const ws = peers.get(username);
-            if (ws) {
-                broadcastFileUpload(ws, {
-                    type: 'fileUploaded',
-                    file: fileData,
-                    username: username
-                });
-            }
-
-            const fileSizeInKB = req.file.size / 1024;
-            const uploadCharge = (0.002 * (fileSizeInKB / 100)).toFixed(6); // 0.002 ETH per 100KB for upload
-            const rewardAmount = (0.005 * (fileSizeInKB / 100)).toFixed(6); // 0.005 ETH per 100KB for reward
-            console.log(`Calculated reward for ${fileSizeInKB}KB: ${rewardAmount} ETH`);
-            console.log(`Upload charge for ${fileSizeInKB}KB: ${uploadCharge} ETH`);
-            await sendReward(ethAddress, rewardAmount);
-            console.log(`Reward of ${rewardAmount} ETH sent to ${ethAddress}`);
-
-            res.json({
-                success: true,
-                data: {
-                    block: blockData,
-                    ipfs: {
-                        hash: response.IpfsHash,
-                        size: req.file.size,
-                        timestamp: Date.now(),
-                        viewUrl: `https://gateway.pinata.cloud/ipfs/${response.IpfsHash}`,
-                        gateway: `https://gateway.pinata.cloud/ipfs/${response.IpfsHash}`
-                    },
-                    fileData: fileData,
-                    reward: rewardAmount,
-                    uploadCharge: uploadCharge
-                }
-            });
-
-        } catch (err) {
-            console.error('❌ Upload failed:', err.message);
-            // Clean up temporary file if it exists
-            if (req.file && req.file.path && fs.existsSync(req.file.path)) {
-                try {
-                    fs.unlinkSync(req.file.path);
-                } catch (unlinkErr) {
-                    console.error('Error cleaning up temporary file:', unlinkErr);
-                }
-            }
-            res.status(500).json({
+        if (!username || !ethAddress) {
+            return res.status(401).json({
                 success: false,
-                message: 'Upload failed: ' + err.message
+                message: 'User not authenticated or ETH address not provided'
             });
         }
-    });
-});
 
-// BLOCKCHAIN DATA ENDPOINT
-app.get('/api/blockchain', (req, res) => {
-    try {
+        // Check if this file is already being processed
+        const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
+        if (requestTracker.has(fileHash)) {
+            return res.status(429).json({
+                success: false,
+                message: 'This file is already being processed'
+            });
+        }
+
+        // Track this request
+        requestTracker.set(fileHash, {
+            timestamp: Date.now(),
+            requestId
+        });
+
+        // Step 1: Check uniqueness exactly once
+        console.log(`[${requestId}] Checking file uniqueness...`);
+        const formData = new FormData();
+        formData.append('file', new Blob([req.file.buffer], { type: req.file.mimetype }), req.file.originalname);
+        
+        const uniquenessResponse = await axios.post('https://qryptum-ai.onrender.com/upload/', formData, {
+            headers: {
+                'accept': 'application/json',
+                'Content-Type': 'multipart/form-data'
+            },
+            maxBodyLength: Infinity
+        });
+
+        // Clean up request tracker after getting response
+        requestTracker.delete(fileHash);
+
+        if (!uniquenessResponse.data || typeof uniquenessResponse.data.uniqueness_score !== 'number') {
+            throw new Error('Invalid response from uniqueness check service');
+        }
+
+        const uniquenessScore = uniquenessResponse.data.uniqueness_score;
+        console.log('Uniqueness score:', uniquenessScore);
+
+        if (uniquenessScore < 50) {
+            return res.status(400).json({
+                success: false,
+                message: 'File is too similar to existing content. Please upload unique content.',
+                score: uniquenessScore,
+                threshold: 50
+            });
+        }
+
+        // Step 2: Process file with Proof of Data
+        console.log('Processing file with Proof of Data...');
+        const fileBuffer = req.file.buffer;
+        const fileData = {
+            fileName: req.file.originalname,
+            fileType: req.file.mimetype,
+            fileSize: req.file.size,
+            fileBuffer: fileBuffer,
+            uniquenessScore: uniquenessScore,
+            uploadedBy: username,
+            timestamp: new Date().toISOString()
+        };
+
+        // Mine block with PoD
+        console.log('Mining block with Proof of Data...');
+        const result = await blockchain.processUploadedFile(fileData);
+        console.log('Mining result:', result);
+
+        // Step 3: Process reward transaction
+        const rewardTransaction = await sendReward(ethAddress, result.reward);
+
+        // Step 4: Upload to IPFS only after successful mining
+        console.log('Uploading to Pinata...');
+        const readableStream = new Readable();
+        readableStream.push(req.file.buffer);
+        readableStream.push(null);
+
+        const pinataResponse = await pinata.pinFileToIPFS(readableStream, {
+            pinataMetadata: {
+                name: req.file.originalname,
+                keyvalues: {
+                    uploadedBy: username,
+                    timestamp: new Date().toISOString(),
+                    uniquenessScore: uniquenessScore
+                }
+            }
+        });
+
+        // Create file record and update blockchain
+        const fileRecord = {
+            fileName: req.file.originalname,
+            fileType: req.file.mimetype,
+            fileSize: req.file.size,
+            ipfsHash: pinataResponse.IpfsHash,
+            pinataUrl: `https://gateway.pinata.cloud/ipfs/${pinataResponse.IpfsHash}`,
+            uniquenessScore,
+            timestamp: new Date().toISOString(),
+            uploadedBy: username,
+            uploadTime: new Date().toISOString(),
+            transaction: {
+                hash: rewardTransaction.receipt.transactionHash,
+                from: rewardTransaction.details.from,
+                to: rewardTransaction.details.to,
+                value: rewardTransaction.details.value,
+                gasPrice: rewardTransaction.details.gasPrice,
+                status: rewardTransaction.details.status
+            }
+        };
+
+        // Final step: Update blockchain and save data
+        const newBlock = await blockchain.processUploadedFile(fileRecord);
+        uploadedFiles.push(fileRecord);
+        await Promise.all([
+            saveUploadedFiles(),
+            saveBlockchain()
+        ]);
+
         res.json({
             success: true,
-            data: blockchain
+            data: {
+                fileData: {
+                    fileName: fileRecord.fileName,
+                    fileSize: fileRecord.fileSize,
+                    uniquenessScore: fileRecord.uniquenessScore
+                },
+                ipfs: {
+                    hash: fileRecord.ipfsHash,
+                    viewUrl: fileRecord.pinataUrl
+                },
+                transaction: fileRecord.transaction,
+                block: {
+                    hash: newBlock.hash,
+                    number: blockchain.chain.length - 1
+                },
+                mining: {
+                    blockHash: result.block.hash,
+                    proof: result.proof,
+                    reward: result.reward
+                }
+            }
+        });
+
+    } catch (error) {
+        // Clean up request tracker on error
+        const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
+        requestTracker.delete(fileHash);
+        
+        console.error('Upload error:', error);
+        const errorMessage = error.message.includes('Too Many Requests') 
+            ? 'Server is busy. Please try again in a few moments.' 
+            : error.message;
+            
+        res.status(error.message.includes('Too Many Requests') ? 429 : 500).json({
+            success: false,
+            message: 'Upload failed',
+            error: errorMessage,
+            retryAfter: error.message.includes('Too Many Requests') ? 30 : undefined
+        });
+    }
+});
+
+// Update upload middleware configuration
+const storage = multer.memoryStorage();
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 100 * 1024 * 1024 // 100MB limit
+    }
+});
+
+// Update the /upload endpoint to use the new middleware
+app.post('/upload', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'No file provided'
+            });
+        }
+
+        // Get uniqueness score
+        console.log(`[${req.file.originalname}] Checking file uniqueness...`);
+        const uniquenessScore = await checkFileUniqueness(req.file.buffer, req.file.mimetype);
+        console.log('Uniqueness score:', uniquenessScore);
+
+        // Upload to IPFS via Pinata
+        const readableStream = new Readable();
+        readableStream.push(req.file.buffer);
+        readableStream.push(null);
+
+        const ipfsResult = await pinata.pinFileToIPFS(readableStream, {
+            pinataMetadata: {
+                name: req.file.originalname
+            }
+        });
+
+        // Process file through blockchain
+        const blockchainResult = await blockchain.processUploadedFile({
+            fileName: req.file.originalname,
+            fileType: req.file.mimetype,
+            fileSize: req.file.size,
+            ipfsHash: ipfsResult.IpfsHash,
+            pinataUrl: `https://gateway.pinata.cloud/ipfs/${ipfsResult.IpfsHash}`,
+            uniquenessScore: uniquenessScore,
+            timestamp: new Date().toISOString(),
+            uploadedBy: username, // Dynamically set based on user authentication
+            uploadTime: new Date().toISOString()
+        });
+
+        if (!blockchainResult.success) {
+            throw new Error(blockchainResult.error);
+        }
+
+        // Save updated chain state
+        await blockchain.saveChain();
+
+        res.json({
+            success: true,
+            message: 'File uploaded successfully',
+            data: {
+                file: req.file,
+                ipfs: ipfsResult,
+                uniquenessScore,
+                blockchain: blockchainResult
+            }
+        });
+
+    } catch (error) {
+        console.error('Upload error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+});
+
+// Add cleanup for old requests every 5 minutes
+setInterval(() => {
+    const now = Date.now();
+    for (const [hash, data] of requestTracker.entries()) {
+        if (now - data.timestamp > 300000) { // 5 minutes
+            requestTracker.delete(hash);
+        }
+    }
+}, 300000);
+
+// Update blockchain data endpoint to handle potential errors
+app.get('/api/blockchain', (req, res) => {
+    try {
+        const chainData = blockchain.chain.map(block => {
+            // Create a new Block instance for validation
+            const validationBlock = new Block(block.data, block.previousHash);
+            validationBlock.timestamp = block.timestamp;
+            validationBlock.nonce = block.nonce;
+
+            return {
+                ...block,
+                isValid: block === blockchain.chain[0] || // Skip genesis block validation
+                    (block.hash === validationBlock.calculateHash() &&
+                     block.previousHash === blockchain.chain[blockchain.chain.indexOf(block) - 1].hash)
+            };
+        });
+
+        res.json({
+            success: true,
+            data: {
+                chain: chainData,
+                length: blockchain.chain.length,
+                isValid: blockchain.isChainValid()
+            }
         });
     } catch (err) {
         console.error('Blockchain data error:', err);
         res.status(500).json({
             success: false,
-            message: 'Failed to fetch blockchain data'
+            message: 'Failed to fetch blockchain data',
+            error: err.message
         });
     }
 });
 
-// Add a status endpoint to check Pinata connection
+// Add new endpoint to get specific block
+app.get('/api/block/:hash', (req, res) => {
+    try {
+        const block = blockchain.getBlockByHash(req.params.hash);
+        if (!block) {
+            return res.status(404).json({
+                success: false,
+                message: 'Block not found'
+            });
+        }
+        res.json({
+            success: true,
+            data: block
+        });
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch block data'
+        });
+    }
+});
+
+// Update status endpoint
 app.get('/api/status', async (req, res) => {
     try {
-        const result = await pinata.testAuthentication();
+        const pinataStatus = await retryOperation(async () => {
+            const pinata = await initPinata();
+            return await pinata.testAuthentication();
+        });
+
         const stats = {
-            totalFiles: blockchain.length,
-            totalSize: blockchain.reduce((acc, block) => acc + (block.fileSize || 0), 0),
-            lastUpload: blockchain.length > 0 ? blockchain[blockchain.length - 1].timestamp : null
+            networkName: "Qryptum Blockchain",
+            version: "1.0.0",
+            totalFiles: Array.isArray(blockchain.chain) ? blockchain.chain.length : 0,
+            totalSize: Array.isArray(blockchain.chain) ? blockchain.chain.reduce((acc, block) => {
+                if (block.data && block.data.fileInfo) {
+                    return acc + (block.data.fileInfo.fileSize || 0);
+                }
+                return acc;
+            }, 0) : 0,
+            lastUpload: Array.isArray(blockchain.chain) && blockchain.chain.length > 0 
+                ? blockchain.chain[blockchain.chain.length - 1].timestamp 
+                : null,
+            pinataConnected: pinataStatus ? true : false
         };
         
         res.json({
             success: true,
-            pinata: result,
+            pinata: pinataStatus,
             stats: stats
         });
     } catch (err) {
-        console.error('Status check error:', err);
-        res.status(500).json({
+        console.error('Status check error:', err.message);
+        res.status(503).json({
             success: false,
-            message: 'Pinata connection error',
+            message: 'Service temporarily unavailable',
             error: err.message
         });
     }
@@ -539,15 +887,13 @@ app.get('/api/status', async (req, res) => {
 // Add a new endpoint to verify uploaded files
 app.get('/api/verify-uploads', async (req, res) => {
     try {
-        // Load saved files
-        const savedFiles = loadUploadedFiles();
-        
-        // Verify each file with Pinata
+        const savedFiles = await loadUploadedFiles();
         const verifiedFiles = [];
         const invalidFiles = [];
 
         for (const file of savedFiles) {
             try {
+                // Check if file still exists on Pinata
                 const pinataResponse = await pinata.pinList({
                     hashContains: file.ipfsHash
                 });
@@ -563,12 +909,11 @@ app.get('/api/verify-uploads', async (req, res) => {
             }
         }
 
-        // Update uploadedFiles with only verified files
+        // Update local metadata
         if (invalidFiles.length > 0) {
             uploadedFiles.length = 0;
             uploadedFiles.push(...verifiedFiles);
-            saveUploadedFiles();
-            console.log(`Removed ${invalidFiles.length} invalid files from records`);
+            await saveUploadedFiles();
         }
 
         res.json({
@@ -587,6 +932,23 @@ app.get('/api/verify-uploads', async (req, res) => {
     }
 });
 
+// Add a new endpoint to get uploaded files data
+app.get('/api/uploaded-files', async (req, res) => {
+    try {
+        const files = await loadUploadedFiles();
+        res.json({
+            success: true,
+            data: files
+        });
+    } catch (err) {
+        console.error('Error fetching uploaded files:', err);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch uploaded files'
+        });
+    }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
@@ -597,14 +959,14 @@ app.use((err, req, res, next) => {
 });
 
 // Add global error handlers
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', async (err) => {
     console.error('Uncaught Exception:', err);
     // Perform cleanup
     try {
-        const files = fs.readdirSync(uploadDir);
-        files.forEach(file => {
+        const files = await fs.readdir(uploadDir);
+        files.forEach(async file => {
             try {
-                fs.unlinkSync(path.join(uploadDir, file));
+                await fs.unlink(join(uploadDir, file));
             } catch (e) {
                 console.error(`Error deleting file ${file}:`, e);
             }
@@ -612,40 +974,6 @@ process.on('uncaughtException', (err) => {
     } catch (e) {
         console.error('Error during cleanup:', e);
     }
-    process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-    // Perform cleanup
-    try {
-        const files = fs.readdirSync(uploadDir);
-        files.forEach(file => {
-            try {
-                fs.unlinkSync(path.join(uploadDir, file));
-            } catch (e) {
-                console.error(`Error deleting file ${file}:`, e);
-            }
-        });
-    } catch (e) {
-        console.error('Error during cleanup:', e);
-    }
-});
-
-// Add endpoint to get active peers
-app.get('/api/peers', (req, res) => {
-    if (!req.session.user) {
-        return res.status(401).json({
-            success: false,
-            message: 'User not authenticated'
-        });
-    }
-
-    const peerList = Array.from(peers.keys());
-    res.json({
-        success: true,
-        peers: peerList
-    });
 });
 
 // Add logout endpoint
@@ -752,7 +1080,7 @@ const startServer = (initialPort) => {
         .on('error', (err) => {
             if (err.code === 'EADDRINUSE') {
                 console.log(`Port ${initialPort} is busy, trying ${initialPort + 1}...`);
-                startServer(initialPort + 1);
+                setTimeout(() => startServer(initialPort + 1), 1000); // Add delay before retrying
             } else {
                 console.error('Server error:', err);
             }
@@ -764,5 +1092,162 @@ const startServer = (initialPort) => {
         });
 };
 
-// Start the server
-startServer(port);
+let node; // Declare node variable at the top level
+
+// Initialize async operations with retry
+const initApp = async () => {
+    try {
+        await initializeContracts();
+        await initializeBlockchain();
+        await loadUsers();
+        
+        // Initialize P2P node with proper error handling
+        console.log('Initializing P2P node...');
+        node = new P2PNode({
+            repoPath: join(__dirname, 'ipfs-repo-backend'),
+            tcpPort: 4012, // Use different port range for backend
+            wsPort: 4013
+        });
+
+        try {
+            await node.init();
+            console.log('P2P Node initialized successfully');
+            
+            // Add new status endpoint for P2P node
+            app.get('/api/p2p-status', (req, res) => {
+                const status = node.getNodeStatus();
+                res.json({
+                    success: true,
+                    data: status
+                });
+            });
+
+        } catch (err) {
+            console.warn('P2P Node initialization failed:', err.message);
+            console.log('Continuing with limited functionality...');
+        }
+        
+        // Start server
+        startServer(port);
+    } catch (err) {
+        console.error('Failed to initialize application:', err);
+        process.exit(1);
+    }
+};
+
+// Only call initApp once
+initApp().catch(console.error);
+
+// Export for testing
+export { app, server, blockchain };
+
+// Add enhanced rate limiting configuration
+const TX_CONFIG = {
+    RATE_LIMIT: 1, // 1 transaction per interval
+    INTERVAL: 60000, // 1 minute in milliseconds
+    MAX_RETRIES: 5,
+    INITIAL_RETRY_DELAY: 5000, // 5 seconds
+    MAX_RETRY_DELAY: 60000, // 1 minute
+    BACKOFF_FACTOR: 1.5,
+    BATCH_SIZE: 5,
+    BACKOFF: {
+        INITIAL_DELAY: 2000,
+        MAX_DELAY: 30000,
+        FACTOR: 1.5,
+        MAX_RETRIES: 5
+    }
+};
+
+// Add exponential backoff utility
+const exponentialBackoff = async (operation, attempt = 0) => {
+    try {
+        return await operation();
+    } catch (error) {
+        if (error.message.includes('Too Many Requests') && attempt < TX_CONFIG.MAX_RETRIES) {
+const delay = Math.min(
+    TX_CONFIG.INITIAL_RETRY_DELAY * Math.pow(TX_CONFIG.BACKOFF_FACTOR, attempt),
+    TX_CONFIG.MAX_RETRY_DELAY
+);
+console.log(`Rate limited. Retrying in ${delay/1000} seconds... (Attempt ${attempt + 1}/${TX_CONFIG.MAX_RETRIES})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return exponentialBackoff(operation, attempt + 1);
+        }
+        throw error;
+    }
+};
+
+// Configuration removed as it's already defined in the main TX_CONFIG object above
+
+// Add improved transaction queue
+const txQueue = {
+    items: new Map(),
+    processing: false,
+    lastTxTime: 0,
+
+    add(address, tx) {
+        this.items.set(address, {
+            tx,
+            attempts: 0,
+            timestamp: Date.now()
+        });
+    },
+
+    async process() {
+        if (this.processing) return;
+        this.processing = true;
+
+        for (const [address, item] of this.items) {
+            if (await this.shouldProcess(item)) {
+                try {
+                    const receipt = await this.executeWithBackoff(item.tx);
+                    this.items.delete(address);
+                    this.lastTxTime = Date.now();
+                    console.log(`Transaction processed successfully for ${address}`);
+                    return receipt;
+                } catch (error) {
+                    item.attempts++;
+                    if (item.attempts >= TX_CONFIG.BACKOFF.MAX_RETRIES) {
+                        this.items.delete(address);
+                        console.error(`Max retries reached for ${address}`);
+                    }
+                }
+            }
+        }
+        this.processing = false;
+    },
+
+    async shouldProcess(item) {
+        const now = Date.now();
+        const timeSinceLastTx = now - this.lastTxTime;
+        return timeSinceLastTx >= TX_CONFIG.INTERVAL;
+    },
+
+    async executeWithBackoff(tx, attempt = 0) {
+        try {
+            const signedTx = await web3.eth.accounts.signTransaction(tx, SENDER_PRIVATE_KEY);
+            return await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+        } catch (error) {
+            if (error.message.includes('Too Many Requests') && attempt < TX_CONFIG.BACKOFF.MAX_RETRIES) {
+                const delay = Math.min(
+                    TX_CONFIG.BACKOFF.INITIAL_DELAY * Math.pow(TX_CONFIG.BACKOFF.FACTOR, attempt),
+                    TX_CONFIG.BACKOFF.MAX_DELAY
+                );
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return this.executeWithBackoff(tx, attempt + 1);
+            }
+            throw error;
+        }
+    }
+};
+
+// Update queue processing interval
+
+// Start queue processing interval
+setInterval(() => txQueue.process(), TX_CONFIG.INTERVAL);
+
+// Add these lines instead:
+const QryptTokenABI = JSON.parse(
+    await fs.readFile(
+        new URL('./contracts/QryptToken.json', import.meta.url)
+    )
+);
