@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Blockchain File Upload System</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Add these script imports before your main script -->
+    <script src="./config/qryptum.config.js"></script>
+    <script src="./contracts/QryptToken.abi.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
     <style>
         :root {
             --primary-color: #4f46e5;
@@ -146,8 +151,8 @@
         }
 
         .error {
-            color: #ffffff;
-            background: var(--error-color);
+            color: #860707;
+            background: var (--error-color);
             padding: 1rem;
             border-radius: 0.5rem;
             margin-top: 1rem;
@@ -247,7 +252,7 @@
         }
 
         .status-item h3 {
-            color: var(--text-color);
+            color: var (--text-color);
             font-size: 1rem;
             margin-bottom: 0.5rem;
         }
@@ -405,15 +410,83 @@
                 opacity: 0;
             }
         }
+
+        .file-info, .blockchain-info, .transaction-info {
+            background: #f8fafc;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0.5rem;
+            border: 1px solid #e2e8f0;
+        }
+
+        .file-info h4, .blockchain-info h4, .transaction-info h4 {
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Add new styles for blockchain display */
+        .view-btn {
+            display: inline-block;
+            background: var(--primary-color);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            text-decoration: none;
+            margin-top: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .view-btn:hover {
+            background: var(--secondary-color);
+            transform: translateY(-2px);
+        }
+
+        .blockchain-info {
+            border-left: 4px solid var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .transaction-info {
+            border-left: 4px solid var(--success-color);
+        }
+
+        .file-info {
+            border-left: 4px solid var(--secondary-color);
+        }
+
+        .error-details {
+            font-size: 0.9em;
+            margin-top: 0.5em;
+            color: #fee2e2;
+        }
+
+        .info {
+            background: var(--primary-color);
+            color: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .error div {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
     </style>
-    <script src="https://cdn.jsdelivr.net/gh/ethereum/web3.js@1.3.0/dist/web3.min.js"></script>
 </head>
 <body>
     <div class="container">
         <button class="logout-btn" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
         <header class="header">
-            <h1><i class="fas fa-link"></i> Blockchain File Upload System</h1>
-            <p>Secure file storage using blockchain technology</p>
+            <h1><i class="fas fa-link"></i> Qryptum Blockchain</h1>
+            <p>Secure decentralized file storage powered by Qryptum</p>
             <div id="welcomeMessage" style="margin-top: 10px; font-size: 1.2rem; display: none;">
                 Welcome, <span id="userNameDisplay"></span>!
             </div>
@@ -467,21 +540,6 @@
                         <h3>Pinata Connection</h3>
                         <p id="pinataStatus">Checking...</p>
                     </div>
-                    <div class="status-item">
-                        <i class="fas fa-file"></i>
-                        <h3>Total Files</h3>
-                        <p id="totalFiles">-</p>
-                    </div>
-                    <div class="status-item">
-                        <i class="fas fa-database"></i>
-                        <h3>Total Size</h3>
-                        <p id="totalSize">-</p>
-                    </div>
-                    <div class="status-item">
-                        <i class="fas fa-clock"></i>
-                        <h3>Last Upload</h3>
-                        <p id="lastUpload">-</p>
-                    </div>
                 </div>
             </div>
         </div>
@@ -505,18 +563,45 @@
             <div id="uploadStatus"></div>
             <div id="fileDetails" class="file-details" style="display:none;">
                 <h3>File Details</h3>
-                <div class="details-content"></div>
+                <div class="details-content">
+                    <div class="file-info">
+                        <h4><i class="fas fa-file"></i> File Information</h4>
+                        <p><strong>File Name:</strong> <span id="fileName"></span></p>
+                        <p><strong>File Type:</strong> <span id="fileType"></span></p>
+                        <p><strong>File Size:</strong> <span id="fileSize"></span></p>
+                        <p><strong>Upload Time:</strong> <span id="uploadTime"></span></p>
+                        <p><strong>Uploaded By:</strong> <span id="uploadedBy"></span></p>
+                    </div>
+                    
+                    <div class="blockchain-info">
+                        <h4><i class="fas fa-link"></i> Blockchain Information</h4>
+                        <p><strong>IPFS Hash:</strong> <span id="ipfsHash"></span></p>
+                        <p><strong>Pinata URL:</strong> <a id="pinataUrl" target="_blank">View on IPFS</a></p>
+                        <p><strong>Block Hash:</strong> <span id="blockHash"></span></p>
+                        <p><strong>Previous Block:</strong> <span id="previousHash"></span></p>
+                    </div>
+                    
+                    <div class="transaction-info">
+                        <h4><i class="fas fa-exchange-alt"></i> Transaction Details</h4>
+                        <p><strong>Transaction Hash:</strong> <a id="txHash" target="_blank"></a></p>
+                        <p><strong>From Address:</strong> <span id="txFrom"></span></p>
+                        <p><strong>To Address:</strong> <span id="txTo"></span></p>
+                        <p><strong>Value:</strong> <span id="txValue"></span></p>
+                        <p><strong>Gas Price:</strong> <span id="txGasPrice"></span></p>
+                        <p><strong>Status:</strong> <span id="txStatus"></span></p>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Blockchain Data Section -->
+        <!-- Add a section to display blockchain data -->
         <div class="card" id="blockchainSection" style="display: none;">
-            <h2><i class="fas fa-database"></i> Blockchain Data</h2>
-            <button id="refreshData">
-                <i class="fas fa-sync-alt"></i> Refresh Data
-            </button>
-            <div id="blockchainData" class="blockchain-data"></div>
+            <h2><i class="fas fa-cube"></i> Blockchain History</h2>
+            <div id="blockchainContainer"></div>
         </div>
+
+        
+
     </div>
 
     <script>
@@ -529,16 +614,28 @@
         // Add error handler function
         const handleApiError = async (response) => {
             if (!response.ok) {
+                const contentType = response.headers.get('content-type');
                 let errorMessage;
                 try {
-                    const errorData = await response.json();
-                    errorMessage = errorData.message;
+                    if (contentType && contentType.includes('application/json')) {
+                        const errorData = await response.json();
+                        errorMessage = errorData.message || errorData.error || 'Unknown error occurred';
+                    } else {
+                        errorMessage = await response.text();
+                    }
                 } catch (e) {
-                    errorMessage = response.statusText;
+                    errorMessage = response.statusText || 'Network error occurred';
                 }
-                throw new Error(errorMessage || 'API request failed');
+                throw new Error(errorMessage);
             }
             return response;
+        };
+
+        // Add a new global error handler function
+        const handleError = (error, context = '') => {
+            console.error(`Error ${context}:`, error);
+            const errorMessage = error.message || 'An unexpected error occurred';
+            showNotification(errorMessage, 'error');
         };
 
         // Toggle between login and register forms
@@ -560,11 +657,10 @@
                 document.getElementById('authSection').style.display = 'none';
                 document.getElementById('statusSection').style.display = 'block';
                 document.getElementById('uploadSection').style.display = 'block';
-                document.getElementById('blockchainSection').style.display = 'block';
                 document.getElementById('welcomeMessage').style.display = 'block';
                 document.getElementById('userNameDisplay').textContent = localStorage.getItem('username');
                 updateSystemStatus();
-                refreshBlockchainData();
+                fetchBlockchainData();
             }
         });
 
@@ -597,7 +693,16 @@
 
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
-                fileUpload.querySelector('p').textContent = `Selected file: ${e.target.files[0].name}`;
+                const file = e.target.files[0];
+                const fileSizeInKB = file.size / 1024;
+                const baseCharge = Math.floor(fileSizeInKB * 0.0003 * 1e18); // Same calculation as above
+                const uploadChargeEth = web3.utils.fromWei(baseCharge.toString(), 'ether');
+                const estimatedRewardEth = (parseFloat(uploadChargeEth) * 1.5).toFixed(18); // 50% more as reward
+                
+                fileUpload.querySelector('p').textContent = 
+                    `Selected file: ${file.name} (${(fileSizeInKB / 1024).toFixed(2)} MB)
+                    Upload charge: ${uploadChargeEth} ETH
+                    Estimated reward: ${estimatedRewardEth} ETH`;
             }
         });
 
@@ -650,8 +755,12 @@
                         password: document.getElementById('loginPassword').value
                     })
                 });
+                
+                await handleApiError(response);
                 const data = await response.json();
+                
                 if (data.success) {
+                    showNotification('Login successful!', 'success');
                     authStatus.innerHTML = `
                         <div class="success fade-in">
                             <i class="fas fa-check-circle"></i>
@@ -663,11 +772,10 @@
                     document.getElementById('authSection').style.display = 'none';
                     document.getElementById('statusSection').style.display = 'block';
                     document.getElementById('uploadSection').style.display = 'block';
-                    document.getElementById('blockchainSection').style.display = 'block';
                     document.getElementById('welcomeMessage').style.display = 'block';
                     document.getElementById('userNameDisplay').textContent = localStorage.getItem('username');
                     updateSystemStatus();
-                    refreshBlockchainData();
+                    fetchBlockchainData();
                     
                     // Connect WebSocket after successful login
                     connectWebSocket();
@@ -680,6 +788,8 @@
                     `;
                 }
             } catch (error) {
+                handleError(error, 'during login');
+                document.getElementById('loginPassword').value = ''; // Clear password on error
                 authStatus.innerHTML = `
                     <div class="error fade-in">
                         <i class="fas fa-exclamation-circle"></i>
@@ -719,6 +829,68 @@
             }
         }
 
+        // Add in the script section
+        const QRYPTUM_NETWORK = {
+            chainId: '0x7A69',
+            chainName: 'Qryptum Network',
+            nativeCurrency: {
+                name: 'QRYPT',
+                symbol: 'QRYPT',
+                decimals: 18
+            },
+            rpcUrls: ['http://127.0.0.1:8545'],
+            blockExplorerUrls: ['http://localhost:8545']
+        };
+
+        async function addQryptumNetwork() {
+            try {
+                await ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                        chainId: '0x539', // Hex of 1337
+                        chainName: 'Qryptum Network',
+                        nativeCurrency: {
+                            name: 'Ether',
+                            symbol: 'ETH', // Changed from QRYPT to ETH
+                            decimals: 18
+                        },
+                        rpcUrls: ['http://127.0.0.1:8545'],
+                        blockExplorerUrls: ['http://localhost:8545']
+                    }]
+                });
+                console.log('Qryptum network added successfully');
+            } catch (error) {
+                console.error('Failed to add Qryptum network:', error);
+                throw error;
+            }
+        }
+
+        // Update the upload form handler to include token approval
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            try {
+                // Ensure connected to Qryptum network
+                if (ethereum.chainId !== QRYPTUM_NETWORK.chainId) {
+                    await addQryptumNetwork();
+                }
+
+                const file = fileInput.files[0];
+                const fileSizeInKB = file.size / 1024;
+                const uploadCharge = (0.03 * (fileSizeInKB / 100)).toFixed(6);
+
+                // Approve QRYPT token spending
+                const tokenContract = new web3.eth.Contract(QryptTokenABI, QRYPTUM_CONFIG.TOKEN_ADDRESS);
+                await tokenContract.methods.approve(QRYPTUM_CONFIG.MAIN_ACCOUNT.ADDRESS, uploadCharge)
+                    .send({ from: ethereum.selectedAddress });
+
+                // Continue with file upload
+                // ...existing upload code...
+            } catch (error) {
+                handleError(error);
+            }
+        });
+
         // Update the file upload event listener
         document.getElementById('uploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -729,114 +901,221 @@
                 return;
             }
 
+            const fileInput = document.getElementById('fileInput');
+            const ethAddress = document.getElementById('ethAddress').value;
+            const uploadStatus = document.getElementById('uploadStatus');
+
+            if (!fileInput.files[0]) {
+                showNotification('Please select a file', 'error');
+                return;
+            }
+
+            if (!ethAddress) {
+                showNotification('Please enter your ETH address', 'error');
+                return;
+            }
+
             try {
-                // Ensure we're on Sepolia network
-                await ensureSepoliaNetwork();
-                
-                // Request account access
-                await requestAccount();
-                const accounts = await ethereum.request({ method: 'eth_accounts' });
-                if (accounts.length === 0) {
-                    showNotification('Please connect to MetaMask', 'error');
+                // Show loading state
+                uploadStatus.innerHTML = `
+                    <div class="info fade-in">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Checking file uniqueness...</span>
+                    </div>
+                `;
+
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                formData.append('ethAddress', ethAddress);
+
+                const response = await fetch(`${API_URL}/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'X-User-Name': username
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    // Show error details including API response
+                    uploadStatus.innerHTML = `
+                        <div class="error fade-in">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <div>
+                                <p>${result.message}</p>
+                                ${result.score !== undefined ? `
+                                    <p>Uniqueness Score: ${result.score}</p>
+                                    <p class="error-details">Your file needs a uniqueness score of at least 50 to be uploaded.</p>
+                                ` : ''}
+                                ${result.error ? `
+                                    <p class="error-details">Error Details: ${result.error}</p>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
                     return;
                 }
 
-                const fileInput = document.getElementById('fileInput');
-                if (!fileInput.files[0]) {
-                    showNotification('Please select a file', 'error');
-                    return;
-                }
+                // Success handling
+                if (result.success) {
+                    // Ensure we're on Sepolia network
+                    await ensureSepoliaNetwork();
+                    
+                    const fileInput = document.getElementById('fileInput');
+                    const ethAddress = document.getElementById('ethAddress').value;
 
-                const ethAddress = document.getElementById('ethAddress').value;
-
-                // Initialize Web3 and process payment
-                try {
-                    const senderAccount = accounts[0];
-                    const web3 = new Web3(window.ethereum);
-                    const nonce = await web3.eth.getTransactionCount(senderAccount, 'latest');
-                    const gasPrice = await web3.eth.getGasPrice();
-                    const adjustedGasPrice = Math.floor(Number(gasPrice) * 1.1).toString();
-
-                    const fileSizeInKB = fileInput.files[0].size / 1024;
-                    const ethAmount = (0.003 * (fileSizeInKB / 100)).toFixed(6); // 0.003 ETH per 100KB
-
-                    const transactionParameters = {
-                        nonce: web3.utils.toHex(nonce),
-                        to: RECEIVER_ADDRESS,
-                        from: senderAccount,
-                        value: web3.utils.toHex(web3.utils.toWei(ethAmount, 'ether')),
-                        gas: web3.utils.toHex(21000),
-                        gasPrice: web3.utils.toHex(adjustedGasPrice),
-                        chainId: parseInt(SEPOLIA_CHAIN_ID, 16)
-                    };
-
-                    showNotification('Please confirm the transaction in MetaMask...', 'info');
-                    const txHash = await ethereum.request({
-                        method: 'eth_sendTransaction',
-                        params: [transactionParameters],
-                    });
-
-                    console.log('Transaction hash:', txHash);
-                    showNotification('Payment confirmed! Processing upload...', 'success');
-
-                    // Now proceed with file upload
-                    const formData = new FormData();
-                    formData.append('file', fileInput.files[0]);
-                    formData.append('ethAddress', ethAddress);
-
-                    const uploadResponse = await fetch(`${API_URL}/upload`, {
-                        method: 'POST',
-                        headers: {
-                            'X-User-Name': username
-                        },
-                        body: formData
-                    });
-
-                    if (!uploadResponse.ok) {
-                        const errorData = await uploadResponse.json();
-                        throw new Error(errorData.message || 'Upload failed');
+                    if (!fileInput.files[0]) {
+                        showNotification('Please select a file', 'error');
+                        return;
                     }
 
-                    const uploadResult = await uploadResponse.json();
-                    
-                    // Update the file upload event listener's success handler
-                    if (uploadResult.success) {
-                        // Show upload success message first
-                        showNotification('File uploaded successfully!', 'success');
+                    if (!ethAddress) {
+                        showNotification('Please enter your ETH address', 'error');
+                        return;
+                    }
+
+                    // Calculate payment amount
+                    const fileSizeInKB = fileInput.files[0].size / 1024;
+                    const ethAmount = (0.005 * (fileSizeInKB / 100)).toFixed(6);
+
+                    showNotification('Please confirm the transaction in MetaMask...', 'info');
+
+                    try {
+                        // Request account access
+                        await requestAccount();
+                        const accounts = await ethereum.request({ method: 'eth_accounts' });
+                        if (accounts.length === 0) {
+                            throw new Error('Please connect to MetaMask');
+                        }
+
+                        const senderAccount = accounts[0];
+                        const web3 = new Web3(window.ethereum);
+                        const nonce = await web3.eth.getTransactionCount(senderAccount, 'latest');
+                        const gasPrice = await web3.eth.getGasPrice();
+                        const adjustedGasPrice = Math.floor(Number(gasPrice) * 1.1).toString();
+
+                        // Prepare transaction
+                        const transactionParameters = {
+                            nonce: web3.utils.toHex(nonce),
+                            to: RECEIVER_ADDRESS,
+                            from: senderAccount,
+                            value: web3.utils.toHex(web3.utils.toWei(ethAmount, 'ether')),
+                            gas: web3.utils.toHex(21000),
+                            gasPrice: web3.utils.toHex(adjustedGasPrice),
+                            chainId: parseInt(SEPOLIA_CHAIN_ID, 16)
+                        };
+
+                        // Send transaction and wait for confirmation
+                        const txHash = await ethereum.request({
+                            method: 'eth_sendTransaction',
+                            params: [transactionParameters],
+                        });
+
+                        showNotification('Transaction sent, waiting for confirmation...', 'info');
+
+                        // Wait for transaction confirmation
+                        const receipt = await waitForTransaction(web3, txHash);
                         
-                        try {
-                            // Now show the reward celebration
-                            showCelebration(ethAmount);
+                        if (!receipt.status) {
+                            throw new Error('Transaction failed');
+                        }
+
+                        showNotification('Payment confirmed! Uploading file...', 'success');
+
+                        // Now proceed with file upload
+                        const formData = new FormData();
+                        formData.append('file', fileInput.files[0]);
+                        formData.append('ethAddress', ethAddress);
+                        formData.append('transactionHash', txHash);
+
+                        const uploadResponse = await fetch(`${API_URL}/upload`, {
+                            method: 'POST',
+                            headers: {
+                                'X-User-Name': username
+                            },
+                            body: formData
+                        });
+
+                        if (!uploadResponse.ok) {
+                            const errorData = await uploadResponse.json();
+                            throw new Error(errorData.message || 'Upload failed');
+                        }
+
+                        const uploadResult = await uploadResponse.json();
+                        
+                        if (uploadResult.success) {
+                            // Show upload success and celebration
+                            showNotification('File uploaded successfully!', 'success');
+                            showCelebration(ethAmount, receipt.transactionHash);
                             
-                            // Update file details
-                            document.getElementById('fileDetails').style.display = 'block';
-                            document.getElementById('fileDetails').querySelector('.details-content').innerHTML = `
-                                <p><strong>File Name:</strong> ${uploadResult.data.fileData.fileName}</p>
-                                <p><strong>File Size:</strong> ${formatFileSize(uploadResult.data.fileData.fileSize)}</p>
-                                <p><strong>IPFS Hash:</strong> ${uploadResult.data.ipfs.hash}</p>
-                                <p><strong>View File:</strong> <a href="${uploadResult.data.ipfs.viewUrl}" target="_blank">Open in IPFS</a></p>
-                                <p><strong>Reward Amount:</strong> ${ethAmount} ETH</p>
-                            `;
+                            // Update file details display
+                            updateFileDetails(uploadResult.data);
                             
                             // Clear form and refresh data
                             fileInput.value = '';
                             fileUpload.querySelector('p').textContent = 'Drag and drop your file here or click to browse';
-                            refreshBlockchainData();
-                        } catch (error) {
-                            console.error('Celebration error:', error);
+                            fetchBlockchainData();
                         }
+                    } catch (error) {
+                        console.error('Transaction error:', error);
+                        showNotification(error.message, 'error');
+                        throw error;
                     }
 
-                } catch (error) {
+                    handleError(error, 'during file upload');
                     console.error('Upload error:', error);
-                    showNotification('Upload failed: ' + error.message, 'error');
+                    showNotification('Upload failed: ' + (error.message || 'Unknown error'), 'error');
                 }
-
             } catch (error) {
-                console.error('Transaction failed:', error);
-                showNotification('Transaction failed: ' + (error.message || 'Unknown error'), 'error');
+                uploadStatus.innerHTML = `
+                    <div class="error fade-in">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <div>
+                            <p>Upload failed: ${error.message}</p>
+                            <p class="error-details">Please try again or contact support if the issue persists.</p>
+                        </div>
+                    </div>
+                `;
             }
         });
+
+        // Add function to wait for transaction confirmation
+        async function waitForTransaction(web3, txHash) {
+            const maxAttempts = 50; // Maximum attempts to check transaction
+            const interval = 1000; // Check every second
+
+            for (let i = 0; i < maxAttempts; i++) {
+                const receipt = await web3.eth.getTransactionReceipt(txHash);
+                if (receipt) {
+                    return receipt;
+                }
+                await new Promise(resolve => setTimeout(resolve, interval));
+            }
+            throw new Error('Transaction confirmation timeout');
+        }
+
+        // Update celebration function to include transaction details
+        function showCelebration(rewardAmount, uploadCharge, txHash) {
+            const celebration = document.createElement('div');
+            celebration.className = 'celebration fade-in';
+            celebration.innerHTML = `
+                <h2><i class="fas fa-check-circle"></i> Success!</h2>
+                <p>File uploaded successfully</p>
+                <p class="reward-text">
+                    🔸 Upload charge: ${uploadCharge} ETH<br>
+                    🎉 You earned ${rewardAmount} ETH! 🎉<br>
+                    Net reward: ${(rewardAmount - uploadCharge).toFixed(6)} ETH
+                </p>
+                <p class="transaction-text">
+                    <a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank">
+                        View Transaction <i class="fas fa-external-link-alt"></i>
+                    </a>
+                </p>
+            `;
+            // ...rest of the celebration function remains the same...
+        }
 
         // Add file size formatter
         function formatFileSize(bytes) {
@@ -847,87 +1126,29 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
-        // Blockchain data refresh functionality
-        async function refreshBlockchainData() {
-            const dataDiv = document.getElementById('blockchainData');
-            const refreshBtn = document.getElementById('refreshData');
-            try {
-                refreshBtn.innerHTML = '<i class="fas fa-spinner loading"></i> Refreshing...';
-                const response = await fetch(`${API_URL}/blockchain`, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    },
-                    credentials: 'include'
-                });
-                await handleApiError(response);
-                const data = await response.json();
-                if (data.success) {
-                    dataDiv.innerHTML = JSON.stringify(data.data, null, 2);
-                } else {
-                    showNotification('Failed to fetch blockchain data', 'error');
-                }
-            } catch (error) {
-                showNotification('Error: ' + error.message, 'error');
-            } finally {
-                refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Data';
-            }
-        }
-
-        function showNotification(message, type) {
+        function showNotification(message, type = 'info') {
             const status = document.getElementById('uploadStatus');
-            status.innerHTML = `
+            const icon = type === 'success' ? 'check-circle' : 
+                         type === 'error' ? 'exclamation-circle' : 
+                         type === 'info' ? 'info-circle' : 'bell';
+            
+            const notification = `
                 <div class="${type} fade-in">
-                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                    <i class="fas fa-${icon}"></i>
                     <span>${message}</span>
                 </div>
             `;
-        }
-
-        document.getElementById('refreshData').addEventListener('click', refreshBlockchainData);
-
-        // Initial load of blockchain data
-        refreshBlockchainData();
-
-        async function updateSystemStatus() {
-            try {
-                const response = await fetch(`${API_URL}/status`, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    },
-                    credentials: 'include'
-                });
-                await handleApiError(response);
-                const data = await response.json();
-                
-                const pinataStatus = document.getElementById('pinataStatus');
-                const totalFiles = document.getElementById('totalFiles');
-                const totalSize = document.getElementById('totalSize');
-                const lastUpload = document.getElementById('lastUpload');
-
-                if (data.success) {
-                    pinataStatus.textContent = 'Connected';
-                    pinataStatus.className = 'connected';
-                    totalFiles.textContent = data.stats.totalFiles;
-                    totalSize.textContent = formatFileSize(data.stats.totalSize);
-                    lastUpload.textContent = data.stats.lastUpload 
-                        ? new Date(data.stats.lastUpload).toLocaleString()
-                        : 'No uploads yet';
-                } else {
-                    pinataStatus.textContent = 'Disconnected';
-                    pinataStatus.className = 'disconnected';
-                }
-            } catch (error) {
-                document.getElementById('pinataStatus').textContent = 'Error';
-                document.getElementById('pinataStatus').className = 'disconnected';
-                console.error('Status update failed:', error);
+            
+            status.innerHTML = notification;
+            
+            // Auto-hide non-error notifications after 5 seconds
+            if (type !== 'error') {
+                setTimeout(() => {
+                    status.innerHTML = '';
+                }, 5000);
             }
         }
 
-        updateSystemStatus();
         // Logout functionality
         document.getElementById('logoutBtn').addEventListener('click', async () => {
             try {
@@ -948,7 +1169,6 @@
                 document.getElementById('authSection').style.display = 'block';
                 document.getElementById('statusSection').style.display = 'none';
                 document.getElementById('uploadSection').style.display = 'none';
-                document.getElementById('blockchainSection').style.display = 'none';
                 document.getElementById('welcomeMessage').style.display = 'none';
                 document.getElementById('userNameDisplay').textContent = '';
             } catch (error) {
@@ -973,34 +1193,47 @@
         const connectWebSocket = () => {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}`;
-            ws = new WebSocket(wsUrl);
+            
+            try {
+                ws = new WebSocket(wsUrl);
 
-            ws.onopen = () => {
-                console.log('WebSocket connected');
-                if (localStorage.getItem('loggedIn') === 'true') {
-                    ws.send(JSON.stringify({
-                        type: 'register',
-                        username: localStorage.getItem('username')
-                    }));
-                }
-            };
+                ws.onopen = () => {
+                    console.log('WebSocket connected');
+                    showNotification('Connected to real-time updates', 'success');
+                    if (localStorage.getItem('loggedIn') === 'true') {
+                        ws.send(JSON.stringify({
+                            type: 'register',
+                            username: localStorage.getItem('username')
+                        }));
+                    }
+                };
 
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                switch(data.type) {
-                    case 'peerList':
-                        updatePeerList(data.peers);
-                        break;
-                    case 'newFile':
-                        handleNewFileNotification(data);
-                        break;
-                }
-            };
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    showNotification('Real-time connection failed', 'error');
+                };
 
-            ws.onclose = () => {
-                console.log('WebSocket disconnected. Reconnecting...');
-                setTimeout(connectWebSocket, 3000);
-            };
+                ws.onclose = () => {
+                    console.log('WebSocket disconnected. Reconnecting...');
+                    showNotification('Connection lost. Reconnecting...', 'info');
+                    setTimeout(connectWebSocket, 3000);
+                };
+
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    switch(data.type) {
+                        case 'peerList':
+                            updatePeerList(data.peers);
+                            break;
+                        case 'newFile':
+                            handleNewFileNotification(data);
+                            break;
+                    }
+                };
+
+            } catch (error) {
+                handleError(error, 'WebSocket connection');
+            }
         };
 
         // Add peer list update function
@@ -1056,13 +1289,385 @@
                 balloon.addEventListener('animationend', () => balloon.remove());
             }
 
-            // Show celebration for longer (5 seconds instead of 3)
+            // Show celebration for longer (7 seconds instead of 3)
             setTimeout(() => {
                 celebration.classList.remove('fade-in');
                 celebration.classList.add('fade-out');
                 setTimeout(() => celebration.remove(), 500);
-            }, 5000);
+            }, 13000);
         }
+
+        // Function to fetch and display blockchain data
+        async function fetchBlockchainData() {
+            try {
+                const response = await fetch(`${API_URL}/blockchain`);
+                await handleApiError(response);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.message || 'Failed to fetch blockchain data');
+                }
+
+                const blockchainContainer = document.getElementById('blockchainContainer');
+                blockchainContainer.innerHTML = '';
+                
+                // Skip genesis block by starting from index 1
+                data.data.chain.slice(1).forEach(block => {
+                    const blockElement = document.createElement('div');
+                    blockElement.className = 'file-details';
+                    
+                    if (block.data.fileInfo) {
+                        blockElement.innerHTML = `
+                            <div class="blockchain-info">
+                                <h4><i class="fas fa-cube"></i> Block Information</h4>
+                                <p><strong>Block Hash:</strong> ${block.hash}</p>
+                                <p><strong>Previous Hash:</strong> ${block.previousHash}</p>
+                                <p><strong>Timestamp:</strong> ${new Date(block.timestamp).toLocaleString()}</p>
+                                <p><strong>Nonce:</strong> ${block.nonce}</p>
+                            </div>
+                            
+                            <div class="file-info">
+                                <h4><i class="fas fa-file"></i> File Information</h4>
+                                <p><strong>File Name:</strong> ${block.data.fileInfo.fileName}</p>
+                                <p><strong>File Type:</strong> ${block.data.fileInfo.fileType}</p>
+                                <p><strong>File Size:</strong> ${formatFileSize(block.data.fileInfo.fileSize)}</p>
+                                <p><strong>IPFS Hash:</strong> ${block.data.fileInfo.ipfsHash}</p>
+                                <a href="${block.data.fileInfo.pinataUrl}" target="_blank" class="view-btn">
+                                    <i class="fas fa-external-link-alt"></i> View File
+                                </a>
+                            </div>
+
+                            ${block.data.uploadInfo ? `
+                                <div class="transaction-info">
+                                    <h4><i class="fas fa-exchange-alt"></i> Transaction Details</h4>
+                                    <p><strong>Uploaded By:</strong> ${block.data.uploadInfo.uploadedBy}</p>
+                                    <p><strong>Upload Time:</strong> ${new Date(block.data.uploadInfo.uploadTime).toLocaleString()}</p>
+                                    ${block.data.uploadInfo.transaction ? `
+                                        <p><strong>Transaction Hash:</strong> 
+                                            <a href="https://sepolia.etherscan.io/tx/${block.data.uploadInfo.transaction.hash}" target="_blank">
+                                                ${block.data.uploadInfo.transaction.hash}
+                                            </a>
+                                        </p>
+                                        <p><strong>Value:</strong> ${block.data.uploadInfo.transaction.value}</p>
+                                        <p><strong>Gas Price:</strong> ${block.data.uploadInfo.transaction.gasPrice}</p>
+                                        <p><strong>Status:</strong> ${block.data.uploadInfo.transaction.status}</p>
+                                    ` : ''}
+                                </div>
+                            ` : ''}
+                        `;
+                    }
+                    blockchainContainer.appendChild(blockElement);
+                });
+                document.getElementById('blockchainSection').style.display = 'block';
+            } catch (error) {
+                handleError(error, 'fetching blockchain data');
+                const blockchainContainer = document.getElementById('blockchainContainer');
+                blockchainContainer.innerHTML = `
+                    <div class="error fade-in">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <span>Failed to load blockchain data. Please try again later.</span>
+                    </div>
+                `;
+            }
+        }
+
+        async function updateSystemStatus() {
+            try {
+                const response = await fetch(`${API_URL}/status`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+                await handleApiError(response);
+                const data = await response.json();
+                
+                const pinataStatus = document.getElementById('pinataStatus');
+
+                if (data.success) {
+                    pinataStatus.textContent = 'Connected';
+                    pinataStatus.className = 'connected';
+                } else {
+                    pinataStatus.textContent = 'Disconnected';
+                    pinataStatus.className = 'disconnected';
+                }
+            } catch (error) {
+                document.getElementById('pinataStatus').textContent = 'Error';
+                document.getElementById('pinataStatus').className = 'disconnected';
+                console.error('Status update failed:', error);
+            }
+        }
+
+        updateSystemStatus();
+
+        // Update the file details display function
+        function updateFileDetails(fileData) {
+            document.getElementById('fileName').textContent = fileData.fileName;
+            document.getElementById('fileType').textContent = fileData.fileType;
+            document.getElementById('fileSize').textContent = formatFileSize(fileData.fileSize);
+            document.getElementById('uploadTime').textContent = new Date(fileData.uploadTime).toLocaleString();
+            document.getElementById('uploadedBy').textContent = fileData.uploadedBy;
+            
+            document.getElementById('ipfsHash').textContent = fileData.ipfsHash;
+            document.getElementById('pinataUrl').href = fileData.pinataUrl;
+            document.getElementById('pinataUrl').textContent = 'View on IPFS';
+            document.getElementById('blockHash').textContent = fileData.blockHash || 'Processing...';
+            document.getElementById('previousHash').textContent = fileData.previousHash || 'Processing...';
+            
+            const tx = fileData.transaction;
+            if (tx) {
+                const txHashElement = document.getElementById('txHash');
+                txHashElement.href = `https://sepolia.etherscan.io/tx/${tx.hash}`;
+                txHashElement.textContent = tx.hash;
+                document.getElementById('txFrom').textContent = tx.from;
+                document.getElementById('txTo').textContent = tx.to;
+                document.getElementById('txValue').textContent = tx.value;
+                document.getElementById('txGasPrice').textContent = tx.gasPrice;
+                document.getElementById('txStatus').textContent = tx.status;
+                
+                // Add status color
+                const statusElement = document.getElementById('txStatus');
+                statusElement.className = `status-${tx.status.toLowerCase()}`;
+            }
+            
+            document.getElementById('fileDetails').style.display = 'block';
+        }
+
+        async function addQryptumNetwork() {
+            try {
+                await ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                        chainId: '0x539', // Hex value of 1337
+                        chainName: 'Qryptum Local Network',
+                        nativeCurrency: {
+                            name: 'QRYPT',
+                            symbol: 'QRYPT',
+                            decimals: 18
+                        },
+                        rpcUrls: ['http://127.0.0.1:8545'],
+                        blockExplorerUrls: ['http://localhost:8545']
+                    }]
+                });
+                console.log('Qryptum network added successfully');
+            } catch (error) {
+                console.error('Failed to add Qryptum network:', error);
+                throw error;
+            }
+        }
+
+        // Add this to your login success handler
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof ethereum !== 'undefined') {
+                addQryptumNetwork().catch(console.error);
+            }
+        });
+
+        // Update chain verification in your upload handler
+        async function verifyChain() {
+            if (typeof ethereum === 'undefined') {
+                throw new Error('Please install MetaMask');
+            }
+            
+            const chainId = await ethereum.request({ method: 'eth_chainId' });
+            if (chainId !== '0x539') { // Check for hex 1337
+                try {
+                    await ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: '0x539' }]
+                    });
+                } catch (error) {
+                    if (error.code === 4902) {
+                        await addQryptumNetwork();
+                    } else {
+                        throw error;
+                    }
+                }
+            }
+        }
+
+        // Update your upload form event listener
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                await verifyChain();
+                // ...rest of your upload code...
+            } catch (error) {
+                console.error('Chain verification failed:', error);
+                showNotification(error.message, 'error');
+            }
+        });
+
+        // Replace the Web3 initialization code with this updated version
+        let web3;
+        let tokenContract;
+
+        // Initialize Web3 and contract
+        async function initWeb3() {
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    // Request account access
+                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    
+                    // Initialize Web3
+                    web3 = new Web3(window.ethereum);
+                    console.log('Web3 initialized');
+                    
+                    // Initialize contract
+                    tokenContract = new web3.eth.Contract(
+                        QryptTokenABI,
+                        QRYPTUM_CONFIG.TOKEN_ADDRESS
+                    );
+                    console.log('Contract initialized');
+                    
+                    return true;
+                } catch (error) {
+                    console.error('User denied account access or error occurred:', error);
+                    throw error;
+                }
+            } else {
+                throw new Error('Please install MetaMask!');
+            }
+        }
+
+        // Update the upload form handler
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            try {
+                // Initialize Web3 if not already initialized
+                if (!web3) {
+                    await initWeb3();
+                }
+                
+                // Ensure connected to Qryptum network
+                await verifyChain();
+
+                const file = fileInput.files[0];
+                const fileSizeInKB = file.size / 1024;
+                
+                // Convert to smallest unit (wei) first to avoid floating point issues
+                const baseCharge = Math.floor(fileSizeInKB * 0.0003 * 1e18); // 0.03% per 100KB, converted to wei
+                const uploadChargeWei = baseCharge.toString();
+
+                // Get accounts
+                const accounts = await web3.eth.getAccounts();
+                if (!accounts[0]) {
+                    throw new Error('No account selected in MetaMask');
+                }
+
+                try {
+                    showNotification('Requesting token approval...', 'info');
+                    
+                    // Approve token spending with proper Wei value
+                    const approveResult = await tokenContract.methods.approve(
+                        QRYPTUM_CONFIG.MAIN_ACCOUNT.ADDRESS,
+                        uploadChargeWei
+                    ).send({ 
+                        from: accounts[0],
+                        gas: '60000'  // Fixed gas value instead of hex
+                    });
+
+                    if (approveResult.status) {
+                        console.log('Token approval successful');
+                        showNotification('Token approval successful', 'success');
+
+                        // Now proceed with the file upload
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        formData.append('ethAddress', accounts[0]);
+                        formData.append('approvalTx', approveResult.transactionHash);
+
+                        // Continue with upload...
+                        const uploadResponse = await fetch(`${API_URL}/upload`, {
+                            method: 'POST',
+                            headers: {
+                                'X-User-Name': localStorage.getItem('username')
+                            },
+                            body: formData
+                        });
+
+                        if (!uploadResponse.ok) {
+                            throw new Error('Upload failed after approval');
+                        }
+
+                        const uploadResult = await uploadResponse.json();
+                        if (uploadResult.success) {
+                            showNotification('File uploaded successfully!', 'success');
+                            // Update UI and show celebration
+                            const ethValue = web3.utils.fromWei(uploadChargeWei, 'ether');
+                            showCelebration(ethValue, approveResult.transactionHash);
+                        }
+                    } else {
+                        throw new Error('Token approval failed');
+                    }
+                } catch (approveError) {
+                    console.error('Token approval failed:', approveError);
+                    throw new Error('Token approval failed: ' + (approveError.message || 'Unknown error'));
+                }
+            } catch (error) {
+                handleError(error);
+            }
+        });
+
+        // Also update the file input change handler to match the decimal precision
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                const fileSizeInKB = file.size / 1024;
+                const baseCharge = Math.floor(fileSizeInKB * 0.0003 * 1e18); // Same calculation as above
+                const uploadChargeEth = web3.utils.fromWei(baseCharge.toString(), 'ether');
+                const estimatedRewardEth = (parseFloat(uploadChargeEth) * 1.5).toFixed(18); // 50% more as reward
+                
+                fileUpload.querySelector('p').textContent = 
+                    `Selected file: ${file.name} (${(fileSizeInKB / 1024).toFixed(2)} MB)
+                    Upload charge: ${uploadChargeEth} ETH
+                    Estimated reward: ${estimatedRewardEth} ETH`;
+            }
+        });
+
+        // Initialize Web3 on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            initWeb3().catch(console.error);
+        });
+
+        // Update the approveTokens function
+        async function approveTokens(amount) {
+            try {
+                // Convert amount to wei (18 decimals)
+                const amountInWei = ethers.utils.parseUnits(amount.toFixed(18), 'ether');
+                
+                const tx = await qryptToken.approve(contractAddress, amountInWei);
+                await tx.wait();
+                console.log('Token approval successful');
+                return true;
+            } catch (error) {
+                console.error('Error approving tokens:', error);
+                throw error;
+            }
+        }
+
+        // Add debounce function
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Update form submission
+        document.getElementById('uploadForm').addEventListener('submit', debounce(async (e) => {
+            e.preventDefault();
+            // ... rest of your upload logic ...
+        }, 1000)); // 1 second debounce
+
     </script>
 </body>
 </html>
