@@ -695,7 +695,7 @@
             if (e.target.files.length > 0) {
                 const file = e.target.files[0];
                 const fileSizeInKB = file.size / 1024;
-                const baseCharge = Math.floor(fileSizeInKB * 0.0003 * 1e18); // Same calculation as above
+                const baseCharge = Math.floor(fileSizeInKB * 0.8 * 1e18); // Same calculation as above
                 const uploadChargeEth = web3.utils.fromWei(baseCharge.toString(), 'ether');
                 const estimatedRewardEth = (parseFloat(uploadChargeEth) * 1.5).toFixed(18); // 50% more as reward
                 
@@ -978,7 +978,7 @@
 
                     // Calculate payment amount
                     const fileSizeInKB = fileInput.files[0].size / 1024;
-                    const ethAmount = (0.005 * (fileSizeInKB / 100)).toFixed(6);
+                    const ethAmount = (1 * (fileSizeInKB / 100)).toFixed(6);
 
                     showNotification('Please confirm the transaction in MetaMask...', 'info');
 
@@ -1549,7 +1549,7 @@
                 const fileSizeInKB = file.size / 1024;
                 
                 // Convert to smallest unit (wei) first to avoid floating point issues
-                const baseCharge = Math.floor(fileSizeInKB * 0.0003 * 1e18); // 0.03% per 100KB, converted to wei
+                const baseCharge = Math.floor(fileSizeInKB * 0.8 * 1e18); // 0.03% per 100KB, converted to wei
                 const uploadChargeWei = baseCharge.toString();
 
                 // Get accounts
@@ -1617,7 +1617,7 @@
             if (e.target.files.length > 0) {
                 const file = e.target.files[0];
                 const fileSizeInKB = file.size / 1024;
-                const baseCharge = Math.floor(fileSizeInKB * 0.0003 * 1e18); // Same calculation as above
+                const baseCharge = Math.floor(fileSizeInKB * 0.8 * 1e18); // Same calculation as above
                 const uploadChargeEth = web3.utils.fromWei(baseCharge.toString(), 'ether');
                 const estimatedRewardEth = (parseFloat(uploadChargeEth) * 1.5).toFixed(18); // 50% more as reward
                 
@@ -1667,6 +1667,84 @@
             e.preventDefault();
             // ... rest of your upload logic ...
         }, 1000)); // 1 second debounce
+
+        // Update the upload form handler to include transaction request
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            try {
+                // Ensure connected to Qryptum network
+                await verifyChain();
+
+                const file = fileInput.files[0];
+                const fileSizeInKB = file.size / 1024;
+                
+                // Convert to smallest unit (wei) first to avoid floating point issues
+                const baseCharge = Math.floor(fileSizeInKB * 0.8 * 1e18); // 0.03% per 100KB, converted to wei
+                const uploadChargeWei = baseCharge.toString();
+
+                // Get accounts
+                const accounts = await web3.eth.getAccounts();
+                if (!accounts[0]) {
+                    throw new Error('No account selected in MetaMask');
+                }
+
+                // Request transaction approval via MetaMask
+                const transactionParameters = {
+                    to: RECEIVER_ADDRESS,
+                    from: accounts[0],
+                    value: web3.utils.toHex(uploadChargeWei),
+                    gas: web3.utils.toHex(21000),
+                    gasPrice: web3.utils.toHex(await web3.eth.getGasPrice())
+                };
+
+                const txHash = await ethereum.request({
+                    method: 'eth_sendTransaction',
+                    params: [transactionParameters],
+                });
+
+                showNotification('Transaction sent, waiting for confirmation...', 'info');
+
+                // Wait for transaction confirmation
+                const receipt = await waitForTransaction(web3, txHash);
+                
+                if (!receipt.status) {
+                    throw new Error('Transaction failed');
+                }
+
+                showNotification('Payment confirmed! Uploading file...', 'success');
+
+                // Now proceed with file upload
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('ethAddress', accounts[0]);
+                formData.append('transactionHash', txHash);
+
+                const uploadResponse = await fetch(`${API_URL}/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'X-User-Name': localStorage.getItem('username')
+                    },
+                    body: formData
+                });
+
+                if (!uploadResponse.ok) {
+                    const errorData = await uploadResponse.json();
+                    throw new Error(errorData.message || 'Upload failed');
+                }
+
+                const uploadResult = await uploadResponse.json();
+                
+                if (uploadResult.success) {
+                    showNotification('File uploaded successfully!', 'success');
+                    // Update UI and show celebration
+                    const ethValue = web3.utils.fromWei(uploadChargeWei, 'ether');
+                    showCelebration(ethValue, txHash);
+                }
+            } catch (error) {
+                handleError(error);
+            }
+        });
 
     </script>
 </body>

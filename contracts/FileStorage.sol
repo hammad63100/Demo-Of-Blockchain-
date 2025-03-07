@@ -14,8 +14,8 @@ contract FileStorage {
     mapping(address => uint256) public userRewards;
     mapping(address => bytes32[]) public userFiles;
     
-    uint256 public constant SHARD_SIZE = 1024 * 1024; // 1MB per shard
-    uint256 public constant REWARD_PER_SHARD = 0.001 ether;
+    uint256 public constant SHARD_SIZE = 1024 * 100; // 100KB per shard
+    uint256 public constant REWARD_PER_SHARD = 1 ether; // 1 QRYPT per shard (100KB)
     uint256 public constant MIN_NODES = 3; // Minimum replicas for redundancy
 
     event FileUploaded(bytes32 indexed fileId, address uploader, uint256 shards);

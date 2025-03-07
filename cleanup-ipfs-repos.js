@@ -18,7 +18,6 @@ async function forceRemoveDirectory(dir, maxRetries = 3) {
                 // Ignore if no processes found
             }
 
-            // Wait for processes to fully terminate
             await delay(1000);
 
             // Force unlock any database locks
@@ -36,25 +35,41 @@ async function forceRemoveDirectory(dir, maxRetries = 3) {
                 }
             }
 
-            // Remove the entire directory
             fs.rmSync(dir, { recursive: true, force: true });
             console.log(`✅ Cleaned up ${path.basename(dir)}`);
             return true;
         } catch (err) {
             console.warn(`Attempt ${i + 1}/${maxRetries} failed:`, err.message);
-            await delay(2000 * (i + 1)); // Exponential backoff
+            await delay(2000 * (i + 1));
         }
     }
     return false;
 }
 
-async function cleanupRepos() {
+function cleanupIPFSRepos() {
+    try {
+        const files = fs.readdirSync(__dirname);
+        const ipfsRepos = files.filter(f => f.startsWith('ipfs-repo-') && f !== 'ipfs-repo');
+        
+        console.log('Found temporary IPFS repos:', ipfsRepos);
+        
+        for (const repo of ipfsRepos) {
+            const repoPath = path.join(__dirname, repo);
+            forceRemoveDirectory(repoPath).catch(err => {
+                console.error(`Failed to remove ${repo}:`, err);
+            });
+        }
+    } catch (err) {
+        console.error('Cleanup error:', err);
+    }
+}
+
+async function cleanupAllRepos() {
     const repos = ['ipfs-repo-main', 'ipfs-repo-backend'];
     let allSuccess = true;
     
     console.log('🔄 Starting cleanup...');
     
-    // Stop all IPFS related processes
     try {
         execSync('taskkill /F /IM ipfs.exe /T', { stdio: 'ignore' });
         console.log('✅ Stopped IPFS processes');
@@ -62,9 +77,9 @@ async function cleanupRepos() {
         // Ignore if no processes found
     }
 
-    // Give processes time to fully stop
     await delay(2000);
 
+    // Clean up specific repos
     for (const repo of repos) {
         const repoPath = path.join(__dirname, repo);
         if (fs.existsSync(repoPath)) {
@@ -78,6 +93,9 @@ async function cleanupRepos() {
         }
     }
 
+    // Clean up temporary repos
+    cleanupIPFSRepos();
+
     if (allSuccess) {
         console.log('✨ All repos cleaned successfully!');
     } else {
@@ -89,7 +107,12 @@ async function cleanupRepos() {
     }
 }
 
-cleanupRepos().catch(err => {
-    console.error('❌ Fatal error during cleanup:', err);
-    process.exit(1);
-});
+// Run cleanup if called directly
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    cleanupAllRepos().catch(err => {
+        console.error('❌ Fatal error during cleanup:', err);
+        process.exit(1);
+    });
+}
+
+export { cleanupIPFSRepos, cleanupAllRepos };

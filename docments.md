@@ -1,7 +1,3 @@
-
-
-
-
 Yes, this is now a functional blockchain system. Here's what it includes:
 
 1. Core Blockchain Features:
@@ -80,3 +76,59 @@ To verify it's working:
 * **File metadata → Qryptum blockchain**
 * **User & uploaded files ka record → Local JSON files (`users.json`, `uploadedFiles.json`)**
 * **Transaction data → Ethereum Testnet (Sepolia) ke blocks me**
+
+The provided files are part of a blockchain project using Hardhat, a development environment for Ethereum software. Here's a brief overview of each file and its purpose:
+
+### [hardhat.config.cjs](vscode-file://vscode-app/c:/Users/T480s/AppData/Local/Programs/Microsoft%20VS%20Code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+
+This is the configuration file for Hardhat using CommonJS syntax. It specifies the Solidity compiler version and network configurations.
+
+### [hardhat.config.js](vscode-file://vscode-app/c:/Users/T480s/AppData/Local/Programs/Microsoft%20VS%20Code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+
+This is another configuration file for Hardhat, but using ES6 module syntax. It also specifies the Solidity compiler version and network configurations.
+
+### [blockchain.js](vscode-file://vscode-app/c:/Users/T480s/AppData/Local/Programs/Microsoft%20VS%20Code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+
+This file contains the implementation of a simple blockchain and block class. It includes methods for mining blocks, verifying proofs, and managing the blockchain state.
+
+### [transactions.js](vscode-file://vscode-app/c:/Users/T480s/AppData/Local/Programs/Microsoft%20VS%20Code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+
+This file contains utility functions for sending and waiting for Ethereum transactions using the ethers.js library.
+
+### [token-info.js](vscode-file://vscode-app/c:/Users/T480s/AppData/Local/Programs/Microsoft%20VS%20Code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+
+This script retrieves and displays information about a deployed ERC20 token on the Ethereum network.
+
+### [start-local-node.js](vscode-file://vscode-app/c:/Users/T480s/AppData/Local/Programs/Microsoft%20VS%20Code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+
+This script starts a local Hardhat node and deploys contracts to it.
+
+### [deploy.js](vscode-file://vscode-app/c:/Users/T480s/AppData/Local/Programs/Microsoft%20VS%20Code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+
+This script deploys the QryptumToken contract to the specified network and saves the deployment information.
+
+### [node-manager.js](vscode-file://vscode-app/c:/Users/T480s/AppData/Local/Programs/Microsoft%20VS%20Code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+
+This file contains utility functions for managing local nodes, such as checking if a port is in use and killing processes on a port.
+
+### [QryptumToken.sol](vscode-file://vscode-app/c:/Users/T480s/AppData/Local/Programs/Microsoft%20VS%20Code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+
+This Solidity file defines the QryptumToken contract, an ERC20 token with additional functionalities like minting, burning, and safe transfers.
+
+### [QryptToken.json](vscode-file://vscode-app/c:/Users/T480s/AppData/Local/Programs/Microsoft%20VS%20Code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+
+This JSON file contains the ABI (Application Binary Interface) for the QryptumToken contract, which is used to interact with the contract from JavaScript.
+
+### [qryptum.config.js](vscode-file://vscode-app/c:/Users/T480s/AppData/Local/Programs/Microsoft%20VS%20Code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+
+This configuration file contains network and token settings for the Qryptum project.
+
+### [network.js](vscode-file://vscode-app/c:/Users/T480s/AppData/Local/Programs/Microsoft%20VS%20Code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+
+This file contains functions for managing network configurations and switching networks in MetaMask.
+
+### [QryptumToken.json](vscode-file://vscode-app/c:/Users/T480s/AppData/Local/Programs/Microsoft%20VS%20Code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.html)
+
+This JSON file contains the compiled artifact of the QryptumToken contract, including its ABI and bytecode.
+
+These files collectively form a blockchain project that includes smart contract development, deployment scripts, and utility functions for interacting with the Ethereum network.

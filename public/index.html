@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qryptum Network Setup</title>
+</head>
+<body>
+    <button onclick="addNetwork()">Add Qryptum Network to MetaMask</button>
+    <script type="module">
+        import { addQryptumNetwork } from '../config/network.js';
+
+        window.addNetwork = async () => {
+            if (typeof window.ethereum !== 'undefined') {
+                const success = await addQryptumNetwork();
+                if (success) {
+                    alert('Network added successfully!');
+                } else {
+                    alert('Failed to add network');
+                }
+            } else {
+                alert('Please install MetaMask!');
+            }
+        };
+    </script>
+</body>
+</html>

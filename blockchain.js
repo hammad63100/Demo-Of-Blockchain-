@@ -185,17 +185,17 @@ class Blockchain {
 
     calculateMiningReward(fileSize) {
         if (!fileSize || isNaN(fileSize)) {
-            return 0.0001; // Default minimum reward
+            return 0.8; // Default minimum reward
         }
         
-        // Base reward of 0.0001 ETH
-        const baseReward = 0.0001;
+        // Base reward of 0.8 ETH
+        const baseReward = 0.8;
         
-        // Additional reward based on file size (0.00001 ETH per MB)
+        // Additional reward based on file size (0.8 ETH per MB)
         const fileSizeInMB = fileSize / (1024 * 1024);
-        const sizeBasedReward = fileSizeInMB * 0.00001;
+        const sizeBasedReward = fileSizeInMB * 0.8;
         
-        // Total reward (minimum 0.0001 ETH)
+        // Total reward (minimum 0.8 ETH)
         const totalReward = Math.max(baseReward, baseReward + sizeBasedReward);
         
         // Return with maximum 6 decimal places

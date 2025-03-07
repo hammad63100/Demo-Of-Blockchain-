@@ -13,7 +13,7 @@ const QryptTokenABI = [
             },
             {
                 "internalType": "uint256",
-                "name": "amount",
+                "name": "value",
                 "type": "uint256"
             }
         ],
@@ -32,7 +32,7 @@ const QryptTokenABI = [
         "inputs": [
             {
                 "internalType": "address",
-                "name": "account",
+                "name": "owner",
                 "type": "address"
             }
         ],

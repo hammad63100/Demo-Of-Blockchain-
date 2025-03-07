@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "D:\\blockchainscratct\\pinata-starter\\contracts\\FileStorage.sol": {
-      "lastModificationDate": 1740117887459,
-      "contentHash": "bf1b8110c85935c4e4ff2739639dbd14",
+      "lastModificationDate": 1741247372207,
+      "contentHash": "32eee7df349817dce92d2de4fb9926dc",
       "sourceName": "contracts/FileStorage.sol",
       "solcConfig": {
         "version": "0.8.20",
@@ -38,8 +38,8 @@
       ]
     },
     "D:\\blockchainscratct\\pinata-starter\\contracts\\QryptumToken.sol": {
-      "lastModificationDate": 1740987103138,
-      "contentHash": "fc66ecf01be6f1d147d130f939503bc6",
+      "lastModificationDate": 1741255357869,
+      "contentHash": "7dd07118213a2e6576dba066877e1522",
       "sourceName": "contracts/QryptumToken.sol",
       "solcConfig": {
         "version": "0.8.20",
